@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Application\Orders\PlaceOrder;
+use App\Http\Requests\Store\PlaceOrderRequest;
 use App\Models\Cart;
 use App\Models\Category;
 use App\Models\Order;
@@ -9,7 +11,6 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -82,18 +83,15 @@ class StoreController extends Controller
         return Inertia::render('Store/Checkout', ['cart' => $this->cartData($cart), 'user' => $request->user()?->only(['name', 'email'])]);
     }
 
-    public function placeOrder(Request $request): RedirectResponse
+    public function placeOrder(PlaceOrderRequest $request, PlaceOrder $placeOrder): RedirectResponse
     {
-        $data = $request->validate(['email' => ['required', 'email'], 'phone' => ['required', 'string', 'max:40'], 'first_name' => ['required', 'string', 'max:80'], 'last_name' => ['required', 'string', 'max:80'], 'line1' => ['required', 'string', 'max:180'], 'line2' => ['nullable', 'string', 'max:180'], 'city' => ['required', 'string', 'max:80'], 'postal_code' => ['required', 'string', 'max:20'], 'country' => ['required', 'size:2'], 'delivery_method' => ['required', 'in:standard,express']]);
-        $cart = $this->cartFor($request)->load('items.variant.product'); abort_if($cart->items->isEmpty(), 422, 'Your bag is empty.');
-        $subtotal = $cart->items->sum(fn ($item) => ($item->variant->price_cents ?? $item->variant->product->price_cents) * $item->quantity);
-        $delivery = $data['delivery_method'] === 'express' ? 1290 : ($subtotal >= 5000 ? 0 : 590);
-        $order = Order::create(['user_id' => $request->user()?->id, 'number' => 'SP-'.strtoupper(Str::random(8)), 'email' => $data['email'], 'phone' => $data['phone'], 'status' => 'pending_payment', 'delivery_method' => $data['delivery_method'], 'subtotal_cents' => $subtotal, 'delivery_cents' => $delivery, 'total_cents' => $subtotal + $delivery, 'currency' => 'EUR']);
-        $order->address()->create(collect($data)->only(['first_name','last_name','line1','line2','city','postal_code','country'])->all());
-        foreach ($cart->items as $item) { $price = $item->variant->price_cents ?? $item->variant->product->price_cents; $order->items()->create(['product_variant_id' => $item->variant_id, 'name' => $item->variant->product->name, 'variant_name' => $item->variant->name, 'unit_price_cents' => $price, 'quantity' => $item->quantity, 'line_total_cents' => $price * $item->quantity]); }
-        $cart->items()->delete();
+        try {
+            $order = $placeOrder->handle($request->validated(), $request->user()?->id, $request->session()->get('cart_token'));
+        } catch (\DomainException $exception) {
+            return back()->withErrors(['cart' => $exception->getMessage()]);
+        }
         $request->session()->put('last_order', $order->number);
-        return redirect()->route('store.order', $order)->with('success', 'Your order has been placed.');
+        return redirect()->route('store.order', ['order' => $order->number])->with('success', 'Your order has been placed.');
     }
 
     public function order(Request $request, Order $order): Response

@@ -14,7 +14,7 @@ Route::post('/cart/items/{variant}', [StoreController::class, 'addToCart'])->nam
 Route::patch('/cart', [StoreController::class, 'updateCart'])->name('store.cart.update');
 Route::get('/checkout', [StoreController::class, 'checkout'])->name('store.checkout');
 Route::post('/checkout', [StoreController::class, 'placeOrder'])->name('store.checkout.place');
-Route::get('/orders/{order}', [StoreController::class, 'order'])->name('store.order');
+Route::get('/orders/{order:number}', [StoreController::class, 'order'])->name('store.order');
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard', ['orders' => \App\Models\Order::where('user_id', request()->user()->id)->with('items')->latest()->get()]);
