@@ -14,9 +14,10 @@ final class EloquentCartRepository implements CartRepository
         $lines = $cart?->items->map(function ($item): OrderLine {
             $variant = $item->variant;
             $price = $variant->price_cents ?? $variant->product->price_cents;
-            if (!$variant->product->active || $variant->stock < $item->quantity) {
+            if (! $variant->product->active || $variant->stock < $item->quantity) {
                 throw new \DomainException("Product variant {$variant->id} is unavailable.");
             }
+
             return new OrderLine($variant->id, $variant->product->name, $variant->name, $price, $item->quantity);
         })->all() ?? [];
 

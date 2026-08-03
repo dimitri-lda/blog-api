@@ -3,7 +3,6 @@
 namespace App\Infrastructure\Persistence\Eloquent\Orders;
 
 use App\Domain\Orders\Contracts\OrderRepository;
-use App\Domain\Orders\Entities\OrderLine;
 use App\Domain\Orders\Order as DomainOrder;
 use App\Models\Order;
 
