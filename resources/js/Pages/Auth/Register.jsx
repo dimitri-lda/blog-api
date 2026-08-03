@@ -4,6 +4,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import Checkbox from '@/Components/Checkbox';
 
 export default function Register() {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -11,6 +12,7 @@ export default function Register() {
         email: '',
         password: '',
         password_confirmation: '',
+        accepted_terms: false,
     });
 
     const submit = (e) => {
@@ -23,11 +25,12 @@ export default function Register() {
 
     return (
         <GuestLayout>
-            <Head title="Register" />
+            <Head title="Create your account" />
 
-            <form onSubmit={submit}>
+            <form onSubmit={submit} className="space-y-4">
+                <div className="mb-8"><h1 className="text-2xl font-black text-slate-950">Create your account</h1><p className="mt-2 text-sm text-slate-500">Save your bag, track orders and move better.</p></div>
                 <div>
-                    <InputLabel htmlFor="name" value="Name" />
+                    <InputLabel htmlFor="name" value="Full name" />
 
                     <TextInput
                         id="name"
@@ -102,16 +105,18 @@ export default function Register() {
                     />
                 </div>
 
-                <div className="mt-4 flex items-center justify-end">
+                <label className="flex items-start gap-3 pt-2 text-sm text-slate-600"><Checkbox name="accepted_terms" checked={data.accepted_terms} onChange={e => setData('accepted_terms', e.target.checked)} required /><span>I agree to the <a href="#" className="font-semibold text-slate-900 underline">Terms</a> and <a href="#" className="font-semibold text-slate-900 underline">Privacy Policy</a>.</span></label>
+                <InputError message={errors.accepted_terms} />
+                <div className="mt-6 flex items-center justify-between">
                     <Link
                         href={route('login')}
                         className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                     >
-                        Already registered?
+                        Already have an account?
                     </Link>
 
                     <PrimaryButton className="ms-4" disabled={processing}>
-                        Register
+                        Create account
                     </PrimaryButton>
                 </div>
             </form>
