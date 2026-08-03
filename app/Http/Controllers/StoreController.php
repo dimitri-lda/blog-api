@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -28,10 +29,10 @@ class StoreController extends Controller
     {
         $query = Product::with(['category', 'variants'])->where('active', true);
         if ($request->filled('q')) {
-            $query->where(fn ($q) => $q->where('name', 'like', '%'.$request->q.'%')->orWhere('brand', 'like', '%'.$request->q.'%'));
+            $query->where(fn($q) => $q->where('name', 'like', '%' . $request->q . '%')->orWhere('brand', 'like', '%' . $request->q . '%'));
         }
         if ($request->filled('category')) {
-            $query->whereHas('category', fn ($q) => $q->where('slug', $request->category));
+            $query->whereHas('category', fn($q) => $q->where('slug', $request->category));
         }
         if ($request->get('sort') === 'price_asc') {
             $query->orderBy('price_cents');
@@ -62,6 +63,32 @@ class StoreController extends Controller
         return Inertia::render('Store/Cart', ['cart' => $this->cartData($cart)]);
     }
 
+    private function cartFor(Request $request): Cart
+    {
+        if ($request->user()) {
+            return Cart::firstOrCreate(['user_id' => $request->user()->id]);
+        }
+        $token = $request->session()->get('cart_token');
+        $cart = $token ? Cart::where('token', $token)->first() : null;
+        if (!$cart) {
+            $cart = Cart::create(['token' => (string)Str::uuid()]);
+            $request->session()->put('cart_token', $cart->token);
+        }
+
+        return $cart;
+    }
+
+    private function cartData(Cart $cart): array
+    {
+        $items = $cart->items->map(function ($item) {
+            $price = $item->variant->price_cents ?? $item->variant->product->price_cents;
+
+            return ['id' => $item->id, 'quantity' => $item->quantity, 'variant_id' => $item->variant_id, 'variant_name' => $item->variant->name, 'name' => $item->variant->product->name, 'image_url' => $item->variant->product->image_url, 'unit_price_cents' => $price, 'line_total_cents' => $price * $item->quantity];
+        });
+
+        return ['items' => $items->values(), 'subtotal_cents' => $items->sum('line_total_cents'), 'count' => $items->sum('quantity')];
+    }
+
     public function addToCart(Request $request, ProductVariant $variant): RedirectResponse
     {
         abort_unless($variant->product->active, 404);
@@ -81,7 +108,7 @@ class StoreController extends Controller
         $cart = $this->cartFor($request);
         foreach ($data['items'] ?? [] as $itemData) {
             $item = $cart->items()->with('variant')->find($itemData['id']);
-            if (! $item) {
+            if (!$item) {
                 continue;
             }
             if ($itemData['quantity'] === 0) {
@@ -109,7 +136,7 @@ class StoreController extends Controller
     {
         try {
             $order = $placeOrder->handle($request->validated(), $request->user()?->id, $request->session()->get('cart_token'));
-        } catch (\DomainException $exception) {
+        } catch (DomainException $exception) {
             return back()->withErrors(['cart' => $exception->getMessage()]);
         }
         $request->session()->put('last_order', $order->number);
@@ -122,31 +149,5 @@ class StoreController extends Controller
         abort_unless($request->user()?->id === $order->user_id || $request->session()->get('last_order') === $order->number, 404);
 
         return Inertia::render('Store/Order', ['order' => $order->load(['items', 'address'])]);
-    }
-
-    private function cartFor(Request $request): Cart
-    {
-        if ($request->user()) {
-            return Cart::firstOrCreate(['user_id' => $request->user()->id]);
-        }
-        $token = $request->session()->get('cart_token');
-        $cart = $token ? Cart::where('token', $token)->first() : null;
-        if (! $cart) {
-            $cart = Cart::create(['token' => (string) Str::uuid()]);
-            $request->session()->put('cart_token', $cart->token);
-        }
-
-        return $cart;
-    }
-
-    private function cartData(Cart $cart): array
-    {
-        $items = $cart->items->map(function ($item) {
-            $price = $item->variant->price_cents ?? $item->variant->product->price_cents;
-
-            return ['id' => $item->id, 'quantity' => $item->quantity, 'variant_id' => $item->variant_id, 'variant_name' => $item->variant->name, 'name' => $item->variant->product->name, 'image_url' => $item->variant->product->image_url, 'unit_price_cents' => $price, 'line_total_cents' => $price * $item->quantity];
-        });
-
-        return ['items' => $items->values(), 'subtotal_cents' => $items->sum('line_total_cents'), 'count' => $items->sum('quantity')];
     }
 }

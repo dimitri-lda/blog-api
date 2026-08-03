@@ -12,7 +12,10 @@ export default defineConfig({
     ],
     server: {
         host: '0.0.0.0',
-        allowedHosts: ['blog-api.local'],
+        allowedHosts: ['blog-api.local', 'admin.blog-api.local'],
+        cors: {
+            origin: ['http://blog-api.local', 'http://admin.blog-api.local'],
+        },
         hmr: {
             host: 'blog-api.local',
         },

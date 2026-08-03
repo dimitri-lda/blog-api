@@ -2,8 +2,8 @@
 
 namespace App\Application\Orders;
 
-use App\Domain\Cart\Contracts\CartRepository;
-use App\Domain\Orders\Contracts\OrderRepository;
+use App\Domain\Cart\Repository\CartRepository;
+use App\Domain\Orders\Repository\OrderRepository;
 use App\Domain\Orders\Order;
 use App\Domain\Orders\ValueObjects\DeliveryMethod;
 use App\Domain\Orders\ValueObjects\ShippingAddress;
@@ -13,16 +13,18 @@ use Illuminate\Support\Str;
 final readonly class PlaceOrder
 {
     public function __construct(
-        private CartRepository $carts,
+        private CartRepository  $carts,
         private OrderRepository $orders,
-    ) {}
+    )
+    {
+    }
 
     /** @param array{email:string,phone:string,first_name:string,last_name:string,line1:string,line2?:?string,city:string,postal_code:string,country:string,delivery_method:string} $data */
     public function handle(array $data, ?int $userId, ?string $cartToken): Order
     {
         return DB::transaction(function () use ($data, $userId, $cartToken): Order {
             $order = new Order(
-                number: 'SP-'.strtoupper(Str::random(8)),
+                number: 'SP-' . strtoupper(Str::random(8)),
                 customerId: $userId,
                 email: $data['email'],
                 phone: $data['phone'],

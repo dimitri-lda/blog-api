@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\Cart;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\Cart;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -45,7 +45,8 @@ class AuthenticatedSessionController extends Controller
         if (!$guest) return;
         $cart = Cart::firstOrCreate(['user_id' => $request->user()->id]);
         foreach ($guest->items as $item) $cart->items()->updateOrCreate(['product_variant_id' => $item->product_variant_id], ['quantity' => $item->quantity]);
-        $guest->delete(); $request->session()->forget('cart_token');
+        $guest->delete();
+        $request->session()->forget('cart_token');
     }
 
     /**
