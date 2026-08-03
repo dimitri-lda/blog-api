@@ -3,8 +3,6 @@
 namespace App\Models;
 
 use App\Domain\Users\ValueObjects\UserRole;
-use Filament\Panel;
-use Filament\Models\Contracts\FilamentUser;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -15,7 +13,7 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password', 'role', 'accepted_terms', 'terms_accepted_at'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable implements FilamentUser
+class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
@@ -23,11 +21,6 @@ class User extends Authenticatable implements FilamentUser
     public function isAdmin(): bool
     {
         return $this->role?->isAdmin() ?? false;
-    }
-
-    public function canAccessPanel(Panel $panel): bool
-    {
-        return $this->isAdmin();
     }
 
     /**

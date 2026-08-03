@@ -5,6 +5,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 
 Route::get('/', [StoreController::class, 'home'])->name('store.home');
 Route::get('/shop', [StoreController::class, 'catalog'])->name('store.catalog');
@@ -27,3 +28,12 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+Route::domain(config('admin.domain'))
+    ->middleware(['auth', 'admin'])
+    ->group(function (): void {
+        Route::redirect('/', '/orders')->name('admin.home');
+        Route::get('/orders', [AdminOrderController::class, 'index'])->name('admin.orders.index');
+        Route::get('/orders/{order}', [AdminOrderController::class, 'show'])->name('admin.orders.show');
+        Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('admin.orders.status.update');
+    });
