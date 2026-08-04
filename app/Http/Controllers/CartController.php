@@ -11,15 +11,13 @@ use Inertia\Response;
 
 class CartController extends Controller
 {
-    public function __construct(private CartService $carts)
-    {
-    }
+    public function __construct(private CartService $carts) {}
 
     public function show(Request $request): Response
     {
         $cart = $this->carts->forRequest($request)->load('items.variant.product');
 
-        return Inertia::render('Store/Cart', ['cart' => $this->carts->data($cart)]);
+        return Inertia::render('Store/Cart', ['cart' => $this->carts->data($cart, $request->attributes->get('market'))]);
     }
 
     public function store(Request $request, ProductVariant $variant): RedirectResponse

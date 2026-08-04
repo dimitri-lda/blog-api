@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Category extends Model
 {
-    protected $fillable = ['parent_id', 'name', 'slug', 'image_url'];
+    protected $fillable = ['parent_id', 'name', 'name_translations', 'slug', 'image_url'];
 
     public function parent(): BelongsTo
     {
@@ -19,4 +19,16 @@ class Category extends Model
     {
         return $this->hasMany(Product::class);
     }
+
+    protected function casts(): array
+    {
+        return ['name_translations' => 'array'];
+    }
+
+    public function getLocalizedNameAttribute(): string
+    {
+        return $this->name_translations[app()->getLocale()] ?? $this->name;
+    }
+
+    protected $appends = ['localized_name'];
 }

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
-    protected $fillable = ['category_id', 'name', 'slug', 'description', 'price_cents', 'compare_at_price_cents', 'brand', 'image_url', 'featured', 'active'];
+    protected $fillable = ['category_id', 'name', 'name_translations', 'slug', 'description', 'description_translations', 'price_cents_net', 'compare_at_price_cents_net', 'brand', 'image_url', 'featured', 'active'];
 
     public function category(): BelongsTo
     {
@@ -27,6 +27,18 @@ class Product extends Model
 
     protected function casts(): array
     {
-        return ['featured' => 'boolean', 'active' => 'boolean'];
+        return ['featured' => 'boolean', 'active' => 'boolean', 'name_translations' => 'array', 'description_translations' => 'array'];
     }
+
+    public function getLocalizedNameAttribute(): string
+    {
+        return $this->name_translations[app()->getLocale()] ?? $this->name;
+    }
+
+    public function getLocalizedDescriptionAttribute(): string
+    {
+        return $this->description_translations[app()->getLocale()] ?? $this->description;
+    }
+
+    protected $appends = ['localized_name', 'localized_description'];
 }

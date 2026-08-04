@@ -17,7 +17,7 @@ class SavedAddressController extends Controller
             'line2' => ['nullable', 'string', 'max:180'],
             'city' => ['required', 'string', 'max:80'],
             'postal_code' => ['required', 'string', 'max:20'],
-            'country' => ['required', 'string', 'size:2'],
+            'country' => ['required', 'string', 'in:'.implode(',', array_keys(config('commerce.country_names')))],
         ]);
 
         $request->user()->savedAddress()->updateOrCreate([], $data);

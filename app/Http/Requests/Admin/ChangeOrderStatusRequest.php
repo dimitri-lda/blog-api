@@ -8,7 +8,13 @@ use Illuminate\Validation\Rules\Enum;
 
 class ChangeOrderStatusRequest extends FormRequest
 {
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return true;
+    }
 
-    public function rules(): array { return ['status' => ['required', new Enum(OrderStatus::class)]]; }
+    public function rules(): array
+    {
+        return ['status' => ['required', new Enum(OrderStatus::class)]];
+    }
 }

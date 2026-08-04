@@ -1,15 +1,10 @@
 import InputError from '@/Components/InputError';
 import { useForm } from '@inertiajs/react';
-
-const countries = [
-    ['PL', 'Poland'],
-    ['DE', 'Germany'],
-    ['FR', 'France'],
-    ['NL', 'Netherlands'],
-    ['CZ', 'Czechia'],
-];
+import { usePage } from '@inertiajs/react';
 
 export default function SavedAddressForm({ address, user }) {
+    const { countries: countryNames, market } = usePage().props;
+    const countries = Object.entries(countryNames).map(([value, labels]) => [value, labels[market.locale] ?? labels.en]);
     const { data, setData, put, processing, errors, recentlySuccessful } = useForm({
         first_name: address?.first_name ?? user.name.split(' ')[0] ?? '',
         last_name: address?.last_name ?? user.name.split(' ').slice(1).join(' ') ?? '',
@@ -17,7 +12,7 @@ export default function SavedAddressForm({ address, user }) {
         line2: address?.line2 ?? '',
         city: address?.city ?? '',
         postal_code: address?.postal_code ?? '',
-        country: address?.country ?? 'PL',
+        country: address?.country ?? market.country,
     });
 
     const field = (name, label, options = {}) => (

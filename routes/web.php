@@ -1,13 +1,14 @@
 <?php
 
+use App\Http\Controllers\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\MarketPreferenceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SavedAddressController;
-use App\Http\Controllers\CartController;
-use Illuminate\Foundation\Application;
+use App\Http\Controllers\StoreController;
+use App\Models\Order;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use App\Http\Controllers\StoreController;
-use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 
 Route::get('/', [StoreController::class, 'home'])->name('store.home');
 Route::get('/shop', [StoreController::class, 'catalog'])->name('store.catalog');
@@ -18,9 +19,10 @@ Route::patch('/cart', [CartController::class, 'update'])->name('store.cart.updat
 Route::get('/checkout', [StoreController::class, 'checkout'])->name('store.checkout');
 Route::post('/checkout', [StoreController::class, 'placeOrder'])->name('store.checkout.place');
 Route::get('/orders/{order:number}', [StoreController::class, 'order'])->name('store.order');
+Route::post('/preferences', [MarketPreferenceController::class, 'update'])->name('market.preferences.update');
 
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard', ['orders' => \App\Models\Order::where('user_id', request()->user()->id)->with('items')->latest()->get()]);
+    return Inertia::render('Dashboard', ['orders' => Order::where('user_id', request()->user()->id)->with('items')->latest()->get()]);
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {

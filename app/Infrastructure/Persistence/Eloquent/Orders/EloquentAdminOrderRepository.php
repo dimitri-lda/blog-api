@@ -13,7 +13,7 @@ final class EloquentAdminOrderRepository implements AdminOrderRepository
         $query = Order::query()->withCount('items')->latest();
 
         if ($search) {
-            $query->where(fn($orders) => $orders
+            $query->where(fn ($orders) => $orders
                 ->where('number', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%"));
         }
@@ -25,7 +25,7 @@ final class EloquentAdminOrderRepository implements AdminOrderRepository
         $orders = $query->paginate($perPage, ['*'], 'page', $page);
 
         return [
-            'data' => $orders->getCollection()->map(fn(Order $order) => [
+            'data' => $orders->getCollection()->map(fn (Order $order) => [
                 'id' => $order->id,
                 'number' => $order->number,
                 'email' => $order->email,
@@ -48,7 +48,7 @@ final class EloquentAdminOrderRepository implements AdminOrderRepository
     {
         $order = Order::query()->with(['items', 'address', 'user'])->find($id);
 
-        if (!$order) {
+        if (! $order) {
             return null;
         }
 
@@ -63,6 +63,14 @@ final class EloquentAdminOrderRepository implements AdminOrderRepository
             'delivery_cents' => $order->delivery_cents,
             'total_cents' => $order->total_cents,
             'currency' => $order->currency,
+            'market' => $order->market,
+            'locale' => $order->locale,
+            'exchange_rate' => $order->exchange_rate,
+            'vat_rate_basis_points' => $order->vat_rate_basis_points,
+            'net_subtotal_cents' => $order->net_subtotal_cents,
+            'tax_cents' => $order->tax_cents,
+            'delivery_net_cents' => $order->delivery_net_cents,
+            'delivery_tax_cents' => $order->delivery_tax_cents,
             'created_at' => $order->created_at?->toIso8601String(),
             'customer' => $order->user ? ['id' => $order->user->id, 'name' => $order->user->name, 'email' => $order->user->email] : null,
             'address' => $order->address ? [
@@ -74,11 +82,13 @@ final class EloquentAdminOrderRepository implements AdminOrderRepository
                 'postal_code' => $order->address->postal_code,
                 'country' => $order->address->country,
             ] : null,
-            'items' => $order->items->map(fn($item) => [
+            'items' => $order->items->map(fn ($item) => [
                 'id' => $item->id,
                 'name' => $item->name,
                 'variant_name' => $item->variant_name,
                 'unit_price_cents' => $item->unit_price_cents,
+                'net_unit_price_cents' => $item->net_unit_price_cents,
+                'tax_cents' => $item->tax_cents,
                 'quantity' => $item->quantity,
                 'line_total_cents' => $item->line_total_cents,
             ])->values()->all(),
