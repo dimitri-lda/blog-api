@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SavedAddressController;
+use App\Http\Controllers\CartController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -11,9 +12,9 @@ use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 Route::get('/', [StoreController::class, 'home'])->name('store.home');
 Route::get('/shop', [StoreController::class, 'catalog'])->name('store.catalog');
 Route::get('/shop/{product:slug}', [StoreController::class, 'product'])->name('store.product');
-Route::get('/cart', [StoreController::class, 'cart'])->name('store.cart');
-Route::post('/cart/items/{variant}', [StoreController::class, 'addToCart'])->name('store.cart.add');
-Route::patch('/cart', [StoreController::class, 'updateCart'])->name('store.cart.update');
+Route::get('/cart', [CartController::class, 'show'])->name('store.cart');
+Route::post('/cart/items/{variant}', [CartController::class, 'store'])->name('store.cart.add');
+Route::patch('/cart', [CartController::class, 'update'])->name('store.cart.update');
 Route::get('/checkout', [StoreController::class, 'checkout'])->name('store.checkout');
 Route::post('/checkout', [StoreController::class, 'placeOrder'])->name('store.checkout.place');
 Route::get('/orders/{order:number}', [StoreController::class, 'order'])->name('store.order');

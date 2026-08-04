@@ -4,15 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Application\Orders\PlaceOrder;
 use App\Http\Requests\Store\PlaceOrderRequest;
-use App\Models\Cart;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\Product;
-use App\Models\ProductVariant;
+use App\Services\CartService;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,81 +55,15 @@ class StoreController extends Controller
         return Inertia::render('Store/Product', ['product' => $product->load(['category', 'variants', 'images']), 'related' => Product::where('category_id', $product->category_id)->where('id', '!=', $product->id)->take(4)->get()]);
     }
 
-    public function cart(Request $request): Response
+    public function checkout(Request $request, CartService $carts): Response
     {
-        $cart = $this->cartFor($request)->load('items.variant.product');
-
-        return Inertia::render('Store/Cart', ['cart' => $this->cartData($cart)]);
-    }
-
-    private function cartFor(Request $request): Cart
-    {
-        if ($request->user()) {
-            return Cart::firstOrCreate(['user_id' => $request->user()->id]);
-        }
-        $token = $request->session()->get('cart_token');
-        $cart = $token ? Cart::where('token', $token)->first() : null;
-        if (!$cart) {
-            $cart = Cart::create(['token' => (string)Str::uuid()]);
-            $request->session()->put('cart_token', $cart->token);
-        }
-
-        return $cart;
-    }
-
-    private function cartData(Cart $cart): array
-    {
-        $items = $cart->items->map(function ($item) {
-            $price = $item->variant->price_cents ?? $item->variant->product->price_cents;
-
-            return ['id' => $item->id, 'quantity' => $item->quantity, 'variant_id' => $item->variant_id, 'variant_name' => $item->variant->name, 'name' => $item->variant->product->name, 'image_url' => $item->variant->product->image_url, 'unit_price_cents' => $price, 'line_total_cents' => $price * $item->quantity];
-        });
-
-        return ['items' => $items->values(), 'subtotal_cents' => $items->sum('line_total_cents'), 'count' => $items->sum('quantity')];
-    }
-
-    public function addToCart(Request $request, ProductVariant $variant): RedirectResponse
-    {
-        abort_unless($variant->product->active, 404);
-        $data = $request->validate(['quantity' => ['nullable', 'integer', 'min:1', 'max:20']]);
-        $cart = $this->cartFor($request);
-        $item = $cart->items()->firstOrNew(['product_variant_id' => $variant->id]);
-        $item->quantity = min($variant->stock, ($item->quantity ?? 0) + ($data['quantity'] ?? 1));
-        abort_if($item->quantity < 1, 422, 'This product is out of stock.');
-        $item->save();
-
-        return back()->with('success', 'Added to your bag.');
-    }
-
-    public function updateCart(Request $request): RedirectResponse
-    {
-        $data = $request->validate(['items' => ['array'], 'items.*.id' => ['integer'], 'items.*.quantity' => ['integer', 'min:0', 'max:20']]);
-        $cart = $this->cartFor($request);
-        foreach ($data['items'] ?? [] as $itemData) {
-            $item = $cart->items()->with('variant')->find($itemData['id']);
-            if (!$item) {
-                continue;
-            }
-            if ($itemData['quantity'] === 0) {
-                $item->delete();
-            } else {
-                $item->quantity = min($item->variant->stock, $itemData['quantity']);
-                $item->save();
-            }
-        }
-
-        return back();
-    }
-
-    public function checkout(Request $request): Response
-    {
-        $cart = $this->cartFor($request)->load('items.variant.product');
+        $cart = $carts->forRequest($request)->load('items.variant.product');
         if ($cart->items->isEmpty()) {
-            return Inertia::render('Store/Cart', ['cart' => $this->cartData($cart)]);
+            return Inertia::render('Store/Cart', ['cart' => $carts->data($cart)]);
         }
 
         return Inertia::render('Store/Checkout', [
-            'cart' => $this->cartData($cart),
+            'cart' => $carts->data($cart),
             'user' => $request->user()?->only(['name', 'email']),
             'address' => $request->user()?->savedAddress,
         ]);
