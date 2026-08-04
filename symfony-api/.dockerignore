@@ -1,7 +1,0 @@
-.git
-.env.local
-config/jwt/*.pem
-frontend/node_modules
-public/app
-var
-vendor
