@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/lib/i18n';
 
 function Preferences() {
@@ -7,8 +7,44 @@ function Preferences() {
     const t = useI18n();
     const [country, setCountry] = useState(market?.country ?? 'DE');
     const [locale, setLocale] = useState(market?.locale ?? 'en');
-    const save = event => { event.preventDefault(); router.post(route('market.preferences.update'), { country, locale }, { preserveScroll: true }); };
-    return <form onSubmit={save} className="rounded-xl border border-slate-700 p-4"><p className="font-bold">{t('market')} & {t('language')}</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><select aria-label={t('market')} value={country} onChange={event => setCountry(event.target.value)} className="rounded-lg border-0 bg-slate-800 text-sm text-white"><optgroup label="Belarus & Poland"><option value="BY">{countries.BY?.[locale] ?? 'Belarus'}</option><option value="PL">{countries.PL?.[locale] ?? 'Poland'}</option></optgroup><optgroup label={t('eu_global')}>{Object.entries(countries).filter(([code]) => !['BY', 'PL'].includes(code)).map(([code, names]) => <option key={code} value={code}>{names[locale] ?? names.en}</option>)}</optgroup></select><select aria-label={t('language')} value={locale} onChange={event => setLocale(event.target.value)} className="rounded-lg border-0 bg-slate-800 text-sm text-white"><option value="en">English</option><option value="ru">Русский</option><option value="pl">Polski</option></select></div><button className="mt-3 rounded-lg bg-blue-400 px-3 py-2 text-xs font-bold text-slate-950">{t('save_preferences')}</button></form>;
+    const [expanded, setExpanded] = useState(false);
+    const preferencesRef = useRef(null);
+    const languageCodes = { en: 'EN', ru: 'RU', pl: 'PL' };
+    const updateCountry = nextCountry => {
+        setCountry(nextCountry);
+        router.post(route('market.preferences.update'), { country: nextCountry, locale }, { preserveScroll: true, preserveState: true });
+    };
+    const updateLanguage = nextLocale => {
+        setLocale(nextLocale);
+        setExpanded(false);
+        router.post(route('market.preferences.update'), { country, locale: nextLocale }, { preserveScroll: true });
+    };
+    const countryName = countries[country]?.[locale] ?? countries[country]?.en ?? country;
+
+    useEffect(() => {
+        const closeOnOutsideClick = event => {
+            if (preferencesRef.current && !preferencesRef.current.contains(event.target)) setExpanded(false);
+        };
+        const closeOnEscape = event => { if (event.key === 'Escape') setExpanded(false); };
+        document.addEventListener('pointerdown', closeOnOutsideClick);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('pointerdown', closeOnOutsideClick);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, []);
+
+    return <div ref={preferencesRef} className="relative w-full max-w-xs">
+        <button type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} aria-controls="market-preferences" className="flex w-full items-center justify-between rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left text-sm font-semibold text-white transition hover:border-slate-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <span>{countryName} <span className="text-slate-500">·</span> {languageCodes[locale] ?? locale.toUpperCase()}</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className={`h-4 w-4 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="m4 6 4 4 4-4" /></svg>
+        </button>
+        {expanded && <div id="market-preferences" className="absolute bottom-[calc(100%+0.5rem)] right-0 z-50 w-full rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-xl shadow-black/30">
+            <p className="px-2 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[.18em] text-slate-500">{t('market')} & {t('language')}</p>
+            <select aria-label={t('market')} value={country} onChange={event => updateCountry(event.target.value)} className="w-full rounded-lg border-0 bg-slate-800 px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-400"><optgroup label="Belarus & Poland"><option value="BY">{countries.BY?.[locale] ?? 'Belarus'}</option><option value="PL">{countries.PL?.[locale] ?? 'Poland'}</option></optgroup><optgroup label={t('eu_global')}>{Object.entries(countries).filter(([code]) => !['BY', 'PL'].includes(code)).map(([code, names]) => <option key={code} value={code}>{names[locale] ?? names.en}</option>)}</optgroup></select>
+            <select aria-label={t('language')} value={locale} onChange={event => updateLanguage(event.target.value)} className="mt-2 w-full rounded-lg border-0 bg-slate-800 px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-blue-400"><option value="en">English</option><option value="ru">Русский</option><option value="pl">Polski</option></select>
+        </div>}
+    </div>;
 }
 
 export default function StoreLayout({ children, title = 'daoSport' }) {

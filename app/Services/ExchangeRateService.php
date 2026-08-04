@@ -31,7 +31,7 @@ final class ExchangeRateService
         if ($stored) {
             return $this->array($stored);
         }
-        throw new \DomainException(__('store.exchange_rate_unavailable'));
+        throw new \DomainException(app(TranslationCatalog::class)->get('exchange_rate_unavailable'));
     }
 
     /** @return array<int, array{0:string,1:callable}> */

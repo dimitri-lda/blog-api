@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\TranslationCatalog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -32,12 +33,16 @@ class Product extends Model
 
     public function getLocalizedNameAttribute(): string
     {
-        return $this->name_translations[app()->getLocale()] ?? $this->name;
+        return app(TranslationCatalog::class)->find("catalog.products.{$this->slug}.name")
+            ?? $this->name_translations[app()->getLocale()]
+            ?? $this->name;
     }
 
     public function getLocalizedDescriptionAttribute(): string
     {
-        return $this->description_translations[app()->getLocale()] ?? $this->description;
+        return app(TranslationCatalog::class)->find("catalog.products.{$this->slug}.description")
+            ?? $this->description_translations[app()->getLocale()]
+            ?? $this->description;
     }
 
     protected $appends = ['localized_name', 'localized_description'];

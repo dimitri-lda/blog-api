@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\TranslationCatalog;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -36,7 +37,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'market' => fn () => $request->attributes->get('market'),
             'countries' => fn () => config('commerce.country_names'),
-            'translations' => fn () => __('store'),
+            'translations' => fn () => app(TranslationCatalog::class)->forLocale(),
             'flash' => ['success' => fn () => $request->session()->get('success'), 'error' => fn () => $request->session()->get('error')],
         ];
     }

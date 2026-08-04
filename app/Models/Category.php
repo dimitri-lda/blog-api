@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\TranslationCatalog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -27,7 +28,9 @@ class Category extends Model
 
     public function getLocalizedNameAttribute(): string
     {
-        return $this->name_translations[app()->getLocale()] ?? $this->name;
+        return app(TranslationCatalog::class)->find("catalog.categories.{$this->slug}.name")
+            ?? $this->name_translations[app()->getLocale()]
+            ?? $this->name;
     }
 
     protected $appends = ['localized_name'];
