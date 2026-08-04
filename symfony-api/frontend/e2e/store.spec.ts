@@ -1,0 +1,2 @@
+import { expect,test } from '@playwright/test';
+test('guest can browse the store and open a product',async({page})=>{await page.goto('/');await expect(page.getByRole('heading',{name:/Find your/i})).toBeVisible();await page.getByRole('link',{name:'Explore the collection ↗'}).click();await expect(page.getByRole('heading',{name:'Shop all'})).toBeVisible();await page.getByText('Cloudswift 4').first().click();await expect(page.getByRole('button',{name:/Add to bag/})).toBeVisible();});

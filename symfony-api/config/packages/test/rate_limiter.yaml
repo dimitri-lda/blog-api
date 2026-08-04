@@ -1,0 +1,10 @@
+framework:
+    rate_limiter:
+        login:
+            policy: fixed_window
+            limit: 100000
+            interval: '1 minute'
+        sensitive:
+            policy: fixed_window
+            limit: 100000
+            interval: '1 minute'

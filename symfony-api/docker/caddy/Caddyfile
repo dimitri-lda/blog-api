@@ -1,0 +1,12 @@
+:80 {
+    encode zstd gzip
+    handle /api/* {
+        root * /app/public
+        php_fastcgi php:9000
+    }
+    handle {
+        reverse_proxy node:5174 {
+            header_up Host localhost
+        }
+    }
+}

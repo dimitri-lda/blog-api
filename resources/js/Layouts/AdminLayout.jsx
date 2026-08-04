@@ -3,7 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 export default function AdminLayout({ children, title = 'Order management' }) {
     const { auth, flash } = usePage().props;
 
-    return <div className="min-h-screen bg-slate-100 text-slate-900">
+    return <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
         <Head title={title} />
         <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
             <aside className="bg-slate-950 px-5 py-5 text-white lg:min-h-screen lg:px-6 lg:py-8">
