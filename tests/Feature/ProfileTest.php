@@ -61,6 +61,35 @@ class ProfileTest extends TestCase
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
 
+    public function test_user_can_save_and_update_a_delivery_address(): void
+    {
+        $user = User::factory()->create();
+
+        $address = [
+            'first_name' => 'Ada',
+            'last_name' => 'Kowalska',
+            'line1' => 'Marszałkowska 1',
+            'line2' => 'Apartment 12',
+            'city' => 'Warsaw',
+            'postal_code' => '00-001',
+            'country' => 'PL',
+        ];
+
+        $this->actingAs($user)
+            ->put('/profile/address', $address)
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/profile');
+
+        $this->assertDatabaseHas('saved_addresses', $address + ['user_id' => $user->id]);
+
+        $this->actingAs($user)
+            ->put('/profile/address', [...$address, 'city' => 'Kraków'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, $user->savedAddress()->count());
+        $this->assertSame('Kraków', $user->savedAddress()->first()->city);
+    }
+
     public function test_user_can_delete_their_account(): void
     {
         $user = User::factory()->create();

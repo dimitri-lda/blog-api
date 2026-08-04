@@ -1,10 +1,11 @@
 import { usePage } from '@inertiajs/react';
 import StoreLayout from '@/Layouts/StoreLayout';
 import DeleteUserForm from './Partials/DeleteUserForm';
+import SavedAddressForm from './Partials/SavedAddressForm';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
 
-export default function Edit({ mustVerifyEmail, status }) {
+export default function Edit({ mustVerifyEmail, status, address }) {
     const { auth } = usePage().props;
 
     return (
@@ -33,6 +34,10 @@ export default function Edit({ mustVerifyEmail, status }) {
 
                         <section className="rounded-3xl bg-white p-6 shadow-sm sm:p-8">
                             <UpdatePasswordForm />
+                        </section>
+
+                        <section className="rounded-3xl bg-white p-6 shadow-sm sm:p-8">
+                            <SavedAddressForm address={address} user={auth.user} />
                         </section>
 
                         <section className="rounded-3xl border border-red-100 bg-red-50/50 p-6 sm:p-8">
