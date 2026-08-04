@@ -2,8 +2,8 @@
 
 namespace App\Infrastructure\Persistence\Eloquent\Orders;
 
-use App\Domain\Orders\Repository\OrderRepository;
 use App\Domain\Orders\Order as DomainOrder;
+use App\Domain\Orders\Repository\OrderRepository;
 use App\Models\Order;
 
 final class EloquentOrderRepository implements OrderRepository

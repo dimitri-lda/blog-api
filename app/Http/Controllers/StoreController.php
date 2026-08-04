@@ -28,10 +28,10 @@ class StoreController extends Controller
     {
         $query = Product::with(['category', 'variants'])->where('active', true);
         if ($request->filled('q')) {
-            $query->where(fn($q) => $q->where('name', 'like', '%' . $request->q . '%')->orWhere('brand', 'like', '%' . $request->q . '%'));
+            $query->where(fn ($q) => $q->where('name', 'like', '%'.$request->q.'%')->orWhere('brand', 'like', '%'.$request->q.'%'));
         }
         if ($request->filled('category')) {
-            $query->whereHas('category', fn($q) => $q->where('slug', $request->category));
+            $query->whereHas('category', fn ($q) => $q->where('slug', $request->category));
         }
         if ($request->get('sort') === 'price_asc') {
             $query->orderBy('price_cents');

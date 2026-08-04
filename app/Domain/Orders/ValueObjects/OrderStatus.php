@@ -16,7 +16,7 @@ enum OrderStatus: string
 
     public function transitionTo(self $target): self
     {
-        if (!$this->canTransitionTo($target)) {
+        if (! $this->canTransitionTo($target)) {
             throw new DomainException("Cannot change an order from {$this->value} to {$target->value}.");
         }
 

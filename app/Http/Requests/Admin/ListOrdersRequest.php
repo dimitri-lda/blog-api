@@ -8,7 +8,10 @@ use Illuminate\Validation\Rules\Enum;
 
 class ListOrdersRequest extends FormRequest
 {
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return true;
+    }
 
     public function rules(): array
     {

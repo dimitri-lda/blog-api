@@ -11,16 +11,15 @@ final readonly class Order
 {
     /** @param list<OrderLine> $lines */
     public function __construct(
-        public string          $number,
-        public ?int            $customerId,
-        public string          $email,
-        public string          $phone,
-        public DeliveryMethod  $deliveryMethod,
+        public string $number,
+        public ?int $customerId,
+        public string $email,
+        public string $phone,
+        public DeliveryMethod $deliveryMethod,
         public ShippingAddress $shippingAddress,
-        public array           $lines,
-        public string          $currency = 'EUR',
-    )
-    {
+        public array $lines,
+        public string $currency = 'EUR',
+    ) {
         if ($lines === []) {
             throw new DomainException('An order cannot be empty.');
         }
@@ -33,7 +32,7 @@ final readonly class Order
 
     public function subtotalCents(): int
     {
-        return array_sum(array_map(fn(OrderLine $line) => $line->totalCents(), $this->lines));
+        return array_sum(array_map(fn (OrderLine $line) => $line->totalCents(), $this->lines));
     }
 
     public function totalCents(): int
