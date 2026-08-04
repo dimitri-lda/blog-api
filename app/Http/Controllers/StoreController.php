@@ -130,7 +130,11 @@ class StoreController extends Controller
             return Inertia::render('Store/Cart', ['cart' => $this->cartData($cart)]);
         }
 
-        return Inertia::render('Store/Checkout', ['cart' => $this->cartData($cart), 'user' => $request->user()?->only(['name', 'email'])]);
+        return Inertia::render('Store/Checkout', [
+            'cart' => $this->cartData($cart),
+            'user' => $request->user()?->only(['name', 'email']),
+            'address' => $request->user()?->savedAddress,
+        ]);
     }
 
     public function placeOrder(PlaceOrderRequest $request, PlaceOrder $placeOrder): RedirectResponse

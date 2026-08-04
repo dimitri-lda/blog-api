@@ -4,7 +4,15 @@ framework:
             policy: fixed_window
             limit: 100000
             interval: '1 minute'
-        sensitive:
+        refresh:
+            policy: fixed_window
+            limit: 100000
+            interval: '1 minute'
+        password_reset:
+            policy: fixed_window
+            limit: 100000
+            interval: '1 minute'
+        verification:
             policy: fixed_window
             limit: 100000
             interval: '1 minute'

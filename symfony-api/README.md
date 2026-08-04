@@ -1,6 +1,6 @@
-# Sportivo — Symfony API + React
+# daoSport — Symfony API + React
 
-Independent learning implementation of the Sportivo store. It does not share code, database volumes or migrations with the Laravel application in the parent directory.
+Independent learning implementation of the daoSport store. It does not share code, database volumes or migrations with the Laravel application in the parent directory.
 
 ## Stack
 

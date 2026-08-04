@@ -1,6 +1,6 @@
 {
     "name": "sportivo/symfony-react-store",
-    "description": "Independent Sportivo storefront built with Symfony and React.",
+    "description": "Independent daoSport storefront built with Symfony and React.",
     "type": "project",
     "license": "proprietary",
     "minimum-stability": "stable",
