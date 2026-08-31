@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\Cart\Contracts;
+namespace App\Domain\Cart\Repository;
 
 use App\Domain\Orders\Entities\OrderLine;
 

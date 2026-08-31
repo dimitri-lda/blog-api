@@ -1,0 +1,91 @@
+preferences:
+  updated: { en: "Preferences updated.", ru: "Настройки обновлены.", pl: "Ustawienia zostały zapisane." }
+  market: { en: "Region", ru: "Регион", pl: "Region" }
+  language: { en: "Language", ru: "Язык", pl: "Język" }
+  save: { en: "Save preferences", ru: "Сохранить настройки", pl: "Zapisz ustawienia" }
+  eu_global: { en: "EU Global", ru: "ЕС", pl: "UE Global" }
+navigation:
+  shop_all: { en: "Shop all", ru: "Все товары", pl: "Wszystkie produkty" }
+  running: { en: "Running", ru: "Бег", pl: "Bieganie" }
+  fitness: { en: "Fitness", ru: "Фитнес", pl: "Fitness" }
+  racket_sports: { en: "Racket sports", ru: "Ракеточные виды спорта", pl: "Sporty rakietowe" }
+  outdoor: { en: "Outdoor", ru: "Активный отдых", pl: "Outdoor" }
+  search_products: { en: "Search products, brands...", ru: "Поиск товаров и брендов...", pl: "Szukaj produktów i marek..." }
+  account: { en: "Account", ru: "Аккаунт", pl: "Konto" }
+  bag: { en: "Bag", ru: "Корзина", pl: "Koszyk" }
+account:
+  signed_in_as: { en: "Signed in as :name", ru: "Выполнен вход: :name", pl: "Zalogowano jako :name" }
+  my_account: { en: "My account", ru: "Мой аккаунт", pl: "Moje konto" }
+  profile_settings: { en: "Profile settings", ru: "Настройки профиля", pl: "Ustawienia profilu" }
+  log_out: { en: "Log out", ru: "Выйти", pl: "Wyloguj" }
+  have_account: { en: "Have an account?", ru: "Уже есть аккаунт?", pl: "Masz konto?" }
+  log_in: { en: "Log in", ru: "Войти", pl: "Zaloguj się" }
+  create_account: { en: "Create account", ru: "Создать аккаунт", pl: "Załóż konto" }
+checkout:
+  title: { en: "Checkout", ru: "Оформление заказа", pl: "Kasa" }
+  place_order: { en: "Place order", ru: "Оформить заказ", pl: "Złóż zamówienie" }
+  continue_shopping: { en: "Continue shopping", ru: "Продолжить покупки", pl: "Kontynuuj zakupy" }
+  ready: { en: "Ready to check out?", ru: "Готовы оформить заказ?", pl: "Gotowy do kasy?" }
+  view_bag: { en: "View bag", ru: "Открыть корзину", pl: "Zobacz koszyk" }
+  delivery: { en: "Delivery", ru: "Доставка", pl: "Dostawa" }
+  total: { en: "Total", ru: "Итого", pl: "Razem" }
+  subtotal: { en: "Subtotal", ru: "Подытог", pl: "Suma częściowa" }
+  net: { en: "Net", ru: "Без НДС", pl: "Netto" }
+  vat: { en: "VAT", ru: "НДС", pl: "VAT" }
+  including_vat: { en: "including VAT", ru: "включая НДС", pl: "z VAT" }
+  free: { en: "Free", ru: "Бесплатно", pl: "Bezpłatna" }
+  exchange_rate_unavailable: { en: "A current exchange rate is unavailable. Please try again shortly.", ru: "Текущий курс недоступен. Повторите попытку позже.", pl: "Aktualny kurs walut jest niedostępny. Spróbuj ponownie za chwilę." }
+footer:
+  free_shipping_banner: { en: "Free shipping on orders over €50 · Easy 30-day returns", ru: "Бесплатная доставка заказов от €50 · Возврат в течение 30 дней", pl: "Darmowa dostawa od €50 · Łatwy zwrot w ciągu 30 dni" }
+  delivery_returns: { en: "Delivery & returns", ru: "Доставка и возврат", pl: "Dostawa i zwroty" }
+  contact_us: { en: "Contact us", ru: "Связаться с нами", pl: "Kontakt" }
+  size_guide: { en: "Size guide", ru: "Таблица размеров", pl: "Tabela rozmiarów" }
+  newsletter: { en: "Stay in the loop", ru: "Будьте в курсе", pl: "Bądź na bieżąco" }
+  newsletter_copy: { en: "New drops and training tips, once a week.", ru: "Новинки и советы для тренировок — раз в неделю.", pl: "Nowości i wskazówki treningowe raz w tygodniu." }
+  email_address: { en: "Email address", ru: "Электронная почта", pl: "Adres e-mail" }
+  copy: { en: "Equipment for every way you move. Curated gear, honest advice and fast delivery.", ru: "Экипировка для любого движения. Отобранные товары, честные советы и быстрая доставка.", pl: "Sprzęt do każdego rodzaju ruchu. Wybrane produkty, uczciwe porady i szybka dostawa." }
+catalog:
+  eyebrow: { en: "The collection", ru: "Коллекция", pl: "Kolekcja" }
+  title: { en: "Shop all", ru: "Все товары", pl: "Wszystkie produkty" }
+  count: { en: ":count pieces to help you move better.", ru: ":count товаров для движения вперёд.", pl: ":count produktów, które pomagają ruszać się lepiej." }
+  search: { en: "Search...", ru: "Поиск...", pl: "Szukaj..." }
+  latest: { en: "Latest", ru: "Новинки", pl: "Najnowsze" }
+  price_asc: { en: "Price: low to high", ru: "Цена: по возрастанию", pl: "Cena: rosnąco" }
+  price_desc: { en: "Price: high to low", ru: "Цена: по убыванию", pl: "Cena: malejąco" }
+  go: { en: "Go", ru: "Найти", pl: "Szukaj" }
+  all: { en: "All", ru: "Все", pl: "Wszystkie" }
+  featured: { en: "Featured", ru: "Рекомендуем", pl: "Polecane" }
+  categories:
+    running:
+      name: { en: "Running", ru: "Бег", pl: "Bieganie" }
+    fitness:
+      name: { en: "Fitness", ru: "Фитнес", pl: "Fitness" }
+    tennis:
+      name: { en: "Racket sports", ru: "Ракеточные виды спорта", pl: "Sporty rakietowe" }
+    outdoor:
+      name: { en: "Outdoor", ru: "Активный отдых", pl: "Outdoor" }
+  products:
+    cloudswift-4:
+      name: { en: "Cloudswift 4", ru: "Cloudswift 4", pl: "Cloudswift 4" }
+      description: { en: "A responsive everyday runner with soft landings and confident grip.", ru: "Отзывчивые кроссовки на каждый день с мягким приземлением и надёжным сцеплением.", pl: "Responsywne buty do codziennego biegania, z miękkim lądowaniem i pewną przyczepnością." }
+    move-training-mat:
+      name: { en: "Move Training Mat", ru: "Коврик для тренировок Move", pl: "Mata treningowa Move" }
+      description: { en: "A grippy, comfortable mat for your home and studio practice.", ru: "Нескользящий удобный коврик для тренировок дома и в студии.", pl: "Antypoślizgowa, wygodna mata do ćwiczeń w domu i studio." }
+    pure-aero-98:
+      name: { en: "Pure Aero 98", ru: "Pure Aero 98", pl: "Pure Aero 98" }
+      description: { en: "Spin, precision and feel for the player who controls every point.", ru: "Вращение, точность и контроль для игрока, который управляет каждым розыгрышем.", pl: "Rotacja, precyzja i czucie dla gracza kontrolującego każdą piłkę." }
+    trail-shell-jacket:
+      name: { en: "Trail Shell Jacket", ru: "Штормовая куртка для трейла", pl: "Kurtka membranowa na trail" }
+      description: { en: "Lightweight weather protection built for changing mountain days.", ru: "Лёгкая защита от непогоды для переменчивых горных дней.", pl: "Lekka ochrona przed pogodą na zmienne górskie dni." }
+    aero-run-shorts:
+      name: { en: "Aero Run Shorts", ru: "Беговые шорты Aero", pl: "Spodenki biegowe Aero" }
+      description: { en: "Light, breathable shorts that stay out of your way.", ru: "Лёгкие дышащие шорты, которые не сковывают движения.", pl: "Lekkie, oddychające spodenki, które nie krępują ruchów." }
+    kettlebell-12kg:
+      name: { en: "Kettlebell 12kg", ru: "Гиря 12 кг", pl: "Kettlebell 12 kg" }
+      description: { en: "A durable cast iron kettlebell for full-body strength sessions.", ru: "Прочная чугунная гиря для силовых тренировок всего тела.", pl: "Wytrzymały żeliwny kettlebell do treningu siłowego całego ciała." }
+    court-backpack:
+      name: { en: "Court Backpack", ru: "Теннисный рюкзак", pl: "Plecak tenisowy" }
+      description: { en: "Smart storage for your racket, kit and everyday essentials.", ru: "Продуманное место для ракетки, экипировки и повседневных вещей.", pl: "Przemyślana przestrzeń na rakietę, sprzęt i codzienne rzeczy." }
+    alpine-daypack:
+      name: { en: "Alpine Daypack 24L", ru: "Альпийский рюкзак 24 л", pl: "Plecak alpejski 24 l" }
+      description: { en: "A comfortable, versatile daypack for every trail.", ru: "Удобный универсальный рюкзак для любого маршрута.", pl: "Wygodny, wszechstronny plecak na każdy szlak." }

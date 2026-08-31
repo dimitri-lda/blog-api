@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Models\Cart;
+use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,14 +17,6 @@ use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
-    /**
-     * Display the registration view.
-     */
-    public function create(): Response
-    {
-        return Inertia::render('Auth/Register');
-    }
-
     /**
      * Handle an incoming registration request.
      *
@@ -55,13 +47,26 @@ class RegisteredUserController extends Controller
         return redirect()->intended(route('store.home', absolute: false));
     }
 
+    /**
+     * Display the registration view.
+     */
+    public function create(): Response
+    {
+        return Inertia::render('Auth/Register');
+    }
+
     private function mergeGuestCart(Request $request, int $userId): void
     {
         $token = $request->session()->get('cart_token');
         $guest = $token ? Cart::with('items')->where('token', $token)->first() : null;
-        if (!$guest) return;
+        if (! $guest) {
+            return;
+        }
         $cart = Cart::firstOrCreate(['user_id' => $userId]);
-        foreach ($guest->items as $item) $cart->items()->updateOrCreate(['product_variant_id' => $item->product_variant_id], ['quantity' => $item->quantity]);
-        $guest->delete(); $request->session()->forget('cart_token');
+        foreach ($guest->items as $item) {
+            $cart->items()->updateOrCreate(['product_variant_id' => $item->product_variant_id], ['quantity' => $item->quantity]);
+        }
+        $guest->delete();
+        $request->session()->forget('cart_token');
     }
 }

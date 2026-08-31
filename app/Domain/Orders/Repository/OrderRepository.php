@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\Orders\Contracts;
+namespace App\Domain\Orders\Repository;
 
 use App\Domain\Orders\Order;
 
