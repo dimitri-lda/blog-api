@@ -89,3 +89,47 @@ catalog:
     alpine-daypack:
       name: { en: "Alpine Daypack 24L", ru: "Альпийский рюкзак 24 л", pl: "Plecak alpejski 24 l" }
       description: { en: "A comfortable, versatile daypack for every trail.", ru: "Удобный универсальный рюкзак для любого маршрута.", pl: "Wygodny, wszechstronny plecak na każdy szlak." }
+order:
+  shop_pay_awaiting: { en: "Awaiting payment", ru: "Ожидается оплата", pl: "Oczekiwanie na płatność" }
+  shop_pay_pending_title:
+    en: "Your order is almost there."
+    ru: "Ваш заказ почти оформлен."
+    pl: "Twoje zamówienie jest prawie gotowe."
+  shop_pay_pending_copy:
+    en: "Order :number was created and is waiting for payment."
+    ru: "Заказ :number создан и ожидает оплаты."
+    pl: "Zamówienie :number zostało utworzone i oczekuje na płatność."
+  shop_pay_unavailable:
+    en: "Shop Pay is not available for this order."
+    ru: "Shop Pay недоступен для этого заказа."
+    pl: "Shop Pay jest niedostępny dla tego zamówienia."
+  shop_pay_failed:
+    en: "Shop Pay couldn't process the request."
+    ru: "Shop Pay не смог обработать запрос."
+    pl: "Shop Pay nie mógł przetworzyć żądania."
+  shop_pay_shipping_only:
+    en: "Only shipping delivery is supported for this order."
+    ru: "Для этого заказа доступна только доставка."
+    pl: "Dla tego zamówienia dostępna jest tylko dostawa."
+  shop_pay_confirming:
+    en: "Confirming your payment…"
+    ru: "Подтверждаем оплату…"
+    pl: "Potwierdzamy płatność…"
+  shop_pay_pending:
+    en: "Payment is still being confirmed. This page will update once it clears."
+    ru: >-
+      Оплата ещё подтверждается.
+      Страница обновится после зачисления.
+    pl: >-
+      Płatność jest jeszcze potwierdzana. Strona odświeży się po zaksięgowaniu.
+  shop_pay_retry:
+    en: "Payment didn't go through — you can try again in the Shop Pay window."
+    ru: "Платёж не прошёл — попробуйте ещё раз в окне Shop Pay."
+    pl: "Płatność się nie powiodła — spróbuj ponownie w oknie Shop Pay."
+  shop_pay_window_closed:
+    en: "Checkout was closed before payment. You can restart it below."
+    ru: >-
+      Оплата была закрыта до завершения.
+      Вы можете начать заново ниже.
+    pl: >-
+      Płatność została zamknięta przed zakończeniem. Możesz zacząć ponownie poniżej.

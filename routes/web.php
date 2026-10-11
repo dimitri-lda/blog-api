@@ -5,6 +5,8 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\MarketPreferenceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SavedAddressController;
+use App\Http\Controllers\ShopifyWebhookController;
+use App\Http\Controllers\ShopPayPaymentController;
 use App\Http\Controllers\StoreController;
 use App\Models\Order;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +21,17 @@ Route::patch('/cart', [CartController::class, 'update'])->name('store.cart.updat
 Route::get('/checkout', [StoreController::class, 'checkout'])->name('store.checkout');
 Route::post('/checkout', [StoreController::class, 'placeOrder'])->name('store.checkout.place');
 Route::get('/orders/{order:number}', [StoreController::class, 'order'])->name('store.order');
+Route::middleware('throttle:30,1')->group(function () {
+    Route::post('/orders/{order:number}/payments/shop-pay/session', [ShopPayPaymentController::class, 'createSession'])
+        ->name('store.order.shop-pay.session');
+    Route::patch('/orders/{order:number}/payments/shop-pay/quote', [ShopPayPaymentController::class, 'quote'])
+        ->name('store.order.shop-pay.quote');
+    Route::post('/orders/{order:number}/payments/shop-pay/submit', [ShopPayPaymentController::class, 'submit'])
+        ->name('store.order.shop-pay.submit');
+    Route::post('/orders/{order:number}/payments/shop-pay/reconcile', [ShopPayPaymentController::class, 'reconcile'])
+        ->name('store.order.shop-pay.reconcile');
+});
+Route::post('/webhooks/shopify/orders', ShopifyWebhookController::class)->name('webhooks.shopify.orders');
 Route::post('/preferences', [MarketPreferenceController::class, 'update'])->name('market.preferences.update');
 
 Route::get('/dashboard', function () {

@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Application\Orders\PlaceOrder;
+use App\Domain\Orders\ValueObjects\OrderStatus;
 use App\Http\Requests\Store\PlaceOrderRequest;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\Product;
 use App\Services\CartService;
 use App\Services\PricingService;
+use App\Services\ShopPay\ShopPayConfiguration;
+use App\Services\ShopPay\ShopPayPaymentRequestFactory;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -84,9 +87,22 @@ class StoreController extends Controller
 
     public function order(Request $request, Order $order): Response
     {
-        abort_unless($request->user()?->id === $order->user_id || $request->session()->get('last_order') === $order->number, 404);
+        abort_unless(
+            ($request->user() && $request->user()->id === $order->user_id)
+                || $request->session()->get('last_order') === $order->number,
+            404,
+        );
 
-        return Inertia::render('Store/Order', ['order' => $order->load(['items', 'address'])]);
+        return Inertia::render('Store/Order', [
+            'order' => $order->load(['items', 'address']),
+            'shopPay' => fn () => $order->status === OrderStatus::PendingPayment
+                ? [
+                    'config' => app(ShopPayConfiguration::class)->publicConfig(),
+                    'state' => $order->paymentSession?->status?->value,
+                    'paymentRequest' => app(ShopPayPaymentRequestFactory::class)->frontend($order),
+                ]
+                : null,
+        ]);
     }
 
     private function priced(Product $product, PricingService $pricing, array $market): Product

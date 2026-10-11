@@ -6,10 +6,16 @@ use App\Domain\Orders\ValueObjects\OrderStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Order extends Model
 {
-    protected $fillable = ['user_id', 'number', 'email', 'phone', 'status', 'delivery_method', 'subtotal_cents', 'delivery_cents', 'total_cents', 'currency', 'market', 'locale', 'base_currency', 'exchange_rate', 'vat_rate_basis_points', 'net_subtotal_cents', 'tax_cents', 'delivery_net_cents', 'delivery_tax_cents'];
+    protected $fillable = [
+        'user_id', 'number', 'email', 'phone', 'status', 'delivery_method',
+        'subtotal_cents', 'delivery_cents', 'total_cents', 'currency', 'market', 'locale',
+        'base_currency', 'exchange_rate', 'vat_rate_basis_points', 'net_subtotal_cents',
+        'tax_cents', 'delivery_net_cents', 'delivery_tax_cents',
+    ];
 
     protected function casts(): array
     {
@@ -29,5 +35,10 @@ class Order extends Model
     public function address()
     {
         return $this->hasOne(OrderAddress::class);
+    }
+
+    public function paymentSession(): HasOne
+    {
+        return $this->hasOne(PaymentSession::class);
     }
 }
