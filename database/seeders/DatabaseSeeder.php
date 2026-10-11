@@ -6,6 +6,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Manufacturer;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -170,7 +171,10 @@ class DatabaseSeeder extends Seeder
                 'brand_id' => $brand->id,
                 'manufacturer_id' => $manufacturer->id,
             ]);
-            $product->variants()->updateOrCreate(['sku' => strtoupper($product->slug).'-ONE'], [
+            ProductVariant::updateOrCreate([
+                'product_id' => $product->id,
+                'sku' => strtoupper($product->slug).'-ONE',
+            ], [
                 'name' => 'One size',
                 'name_translations' => ['ru' => 'Один размер', 'pl' => 'Rozmiar uniwersalny'],
                 'stock' => $product->slug === 'court-backpack' ? 0 : 24,

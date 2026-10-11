@@ -60,7 +60,8 @@ class StoreController extends Controller
             $query->whereIn('category_id', $ids);
         }
         if (in_array($request->get('sort'), ['price_asc', 'price_desc'])) {
-            $query->orderBy('price_cents_net', $request->get('sort') === 'price_asc' ? 'ASC' : 'DESC')->orderBy('id');
+            $priceColumn = $query->getModel()->qualifyColumn('price_cents_net');
+            $query->orderBy($priceColumn, $request->get('sort') === 'price_asc' ? 'ASC' : 'DESC')->orderBy('id');
         } else {
             $query->latest()->orderByDesc('id');
         }
@@ -173,7 +174,7 @@ class StoreController extends Controller
                     }
                 }
             }
-            $category->products_count = $counts->only($ids)->sum();
+            $category->setAttribute('products_count', $counts->only($ids)->sum());
 
             return $category;
         });

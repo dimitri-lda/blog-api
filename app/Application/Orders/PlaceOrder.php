@@ -23,7 +23,7 @@ final readonly class PlaceOrder
 
     /**
      * @param array{email:string,phone:string,first_name:string,last_name:string,
-     *     line1:string,line2?:?string,city:string,postal_code:string,country:string,
+     *     line1:string,'line2'?: string|null,city:string,postal_code:string,country:string,
      *     delivery_method:string} $data
      */
     public function handle(array $data, ?int $userId, ?string $cartToken, array $market): Order
