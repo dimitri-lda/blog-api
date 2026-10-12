@@ -70,6 +70,16 @@ function ShopPayPanel({ order, shopPay }) {
             return undefined;
         }
         let cancelled = false;
+        let session = null;
+        const listeners = [];
+        const listen = (name, handler) => {
+            if (!session?.addEventListener) {
+                return;
+            }
+            session.addEventListener(name, handler);
+            listeners.push([name, handler]);
+        };
+
         loadShopPaySdk().then(() => {
             if (cancelled || !window.ShopPay?.PaymentRequest || !containerRef.current) {
                 return;
@@ -80,26 +90,36 @@ function ShopPayPanel({ order, shopPay }) {
                 discountCodeField: false,
             });
             const build = request => window.ShopPay.PaymentRequest.build(request);
-            const generalError = error => [{ type: 'generalError', message: error?.message || t('shop_pay_failed') }];
-            const session = window.ShopPay.PaymentRequest.createSession({
+            const generalError = error => [
+                { type: 'generalError', message: error?.message || t('shop_pay_failed') },
+            ];
+            session = window.ShopPay.PaymentRequest.createSession({
                 paymentRequest: build(shopPay.paymentRequest),
             });
             const rebuilt = () => build({ ...(session.paymentRequest ?? shopPay.paymentRequest) });
 
-            session.addEventListener('sessionrequested', () => {
+            const onSessionRequested = () => {
                 paymentApi(route('store.order.shop-pay.session', order.number), 'POST')
-                    .then(data => session.completeSessionRequest({
-                        token: data.token,
-                        checkoutUrl: data.checkoutUrl,
-                        sourceIdentifier: data.sourceIdentifier,
-                        updatedPaymentRequest: build(data.paymentRequest ?? shopPay.paymentRequest),
-                    }))
+                    .then((data) => {
+                        if (cancelled) {
+                            return;
+                        }
+                        session.completeSessionRequest({
+                            token: data.token,
+                            checkoutUrl: data.checkoutUrl,
+                            sourceIdentifier: data.sourceIdentifier,
+                            updatedPaymentRequest: build(data.paymentRequest ?? shopPay.paymentRequest),
+                        });
+                    })
                     .catch(() => {
+                        if (cancelled) {
+                            return;
+                        }
                         setNotice(t('shop_pay_failed'));
                         session.close();
                     });
-            });
-            session.addEventListener('deliverymethodtypechanged', ev => {
+            };
+            const onDeliveryMethodTypeChanged = (ev) => {
                 if (ev.deliveryMethodType === 'SHIPPING') {
                     session.completeDeliveryMethodTypeChange({ updatedPaymentRequest: rebuilt() });
                 } else {
@@ -107,45 +127,77 @@ function ShopPayPanel({ order, shopPay }) {
                         errors: [{ type: 'generalError', message: t('shop_pay_shipping_only') }],
                     });
                 }
-            });
-            session.addEventListener('shippingaddresschanged', ev => {
+            };
+            const onShippingAddressChanged = (ev) => {
                 paymentApi(route('store.order.shop-pay.quote', order.number), 'PATCH', {
+                    session_token: session.token,
                     shipping_address: contact(ev.shippingAddress),
-                    delivery_method: session.paymentRequest?.shippingLines?.[0]?.code ?? order.delivery_method,
-                }).then(data => session.completeShippingAddressChange({
-                    updatedPaymentRequest: build(data.paymentRequest),
-                })).catch(error => session.completeShippingAddressChange({
-                    updatedPaymentRequest: build({
-                        ...(session.paymentRequest ?? shopPay.paymentRequest),
-                        deliveryMethods: [],
-                    }),
-                    errors: [{ type: 'shippingAddressError', message: error.message }],
-                }));
-            });
-            session.addEventListener('deliverymethodchanged', ev => {
+                    delivery_method:
+                        session.paymentRequest?.shippingLines?.[0]?.code ?? order.delivery_method,
+                }).then((data) => {
+                    if (cancelled) {
+                        return;
+                    }
+                    session.completeShippingAddressChange({
+                        updatedPaymentRequest: build(data.paymentRequest),
+                    });
+                }).catch((error) => {
+                    if (cancelled) {
+                        return;
+                    }
+                    session.completeShippingAddressChange({
+                        updatedPaymentRequest: build({
+                            ...(session.paymentRequest ?? shopPay.paymentRequest),
+                            deliveryMethods: [],
+                        }),
+                        errors: [{ type: 'shippingAddressError', message: error.message }],
+                    });
+                });
+            };
+            const onDeliveryMethodChanged = (ev) => {
                 paymentApi(route('store.order.shop-pay.quote', order.number), 'PATCH', {
+                    session_token: session.token,
                     shipping_address: contact(session.paymentRequest?.shippingAddress),
                     delivery_method: ev.deliveryMethod?.code,
-                }).then(data => session.completeDeliveryMethodChange({
-                    updatedPaymentRequest: build(data.paymentRequest),
-                })).catch(error => session.completeDeliveryMethodChange({ errors: generalError(error) }));
-            });
-            session.addEventListener('paymentconfirmationrequested', () => {
+                }).then((data) => {
+                    if (cancelled) {
+                        return;
+                    }
+                    session.completeDeliveryMethodChange({
+                        updatedPaymentRequest: build(data.paymentRequest),
+                    });
+                }).catch((error) => {
+                    if (cancelled) {
+                        return;
+                    }
+                    session.completeDeliveryMethodChange({ errors: generalError(error) });
+                });
+            };
+            const onPaymentConfirmationRequested = () => {
                 paymentApi(route('store.order.shop-pay.submit', order.number), 'POST', {
                     session_token: session.token,
                     payment_method: session.paymentRequest?.paymentMethod ?? '',
-                }).then(() => session.completePaymentConfirmationRequest())
-                    .catch(error => session.completePaymentConfirmationRequest({
-                        errors: generalError(error),
-                    }));
-            });
-            session.addEventListener('paymentcomplete', async () => {
+                }).then(() => {
+                    if (!cancelled) {
+                        session.completePaymentConfirmationRequest();
+                    }
+                }).catch((error) => {
+                    if (cancelled) {
+                        return;
+                    }
+                    session.completePaymentConfirmationRequest({ errors: generalError(error) });
+                });
+            };
+            const onPaymentComplete = async () => {
                 setNotice(t('shop_pay_confirming'));
                 for (let attempt = 0; attempt < 6 && !cancelled; attempt += 1) {
                     try {
                         const result = await paymentApi(
                             route('store.order.shop-pay.reconcile', order.number), 'POST',
                         );
+                        if (cancelled) {
+                            return;
+                        }
                         if (result.paid) {
                             paidRef.current = true;
                             session.close();
@@ -153,29 +205,49 @@ function ShopPayPanel({ order, shopPay }) {
                             return;
                         }
                     } catch {
-                        setNotice(t('shop_pay_confirming'));
+                        if (!cancelled) {
+                            setNotice(t('shop_pay_confirming'));
+                        }
                     }
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 }
                 if (!cancelled) {
                     setNotice(t('shop_pay_pending'));
                 }
-            });
-            session.addEventListener('paymentattemptfailed', () => {
+            };
+            const onPaymentAttemptFailed = () => {
                 setNotice(t('shop_pay_retry'));
-            });
-            session.addEventListener('windowclosed', () => {
+            };
+            const onWindowClosed = () => {
                 if (!paidRef.current) {
                     setNotice(t('shop_pay_window_closed'));
                 }
-            });
+            };
+
+            listen('sessionrequested', onSessionRequested);
+            listen('deliverymethodtypechanged', onDeliveryMethodTypeChanged);
+            listen('shippingaddresschanged', onShippingAddressChanged);
+            listen('deliverymethodchanged', onDeliveryMethodChanged);
+            listen('paymentconfirmationrequested', onPaymentConfirmationRequested);
+            listen('paymentcomplete', onPaymentComplete);
+            listen('paymentattemptfailed', onPaymentAttemptFailed);
+            listen('windowclosed', onWindowClosed);
             window.ShopPay.PaymentRequest.createButton().render('#shop-pay-button-container');
-        }).catch(() => setNotice(t('shop_pay_unavailable')));
+        }).catch(() => {
+            if (!cancelled) {
+                setNotice(t('shop_pay_unavailable'));
+            }
+        });
 
         return () => {
             cancelled = true;
+            if (session?.removeEventListener) {
+                listeners.forEach(([name, handler]) => session.removeEventListener(name, handler));
+            }
+            session?.close?.();
+            containerRef.current?.replaceChildren();
         };
-    }, [order.number]);
+    }, [order.number, shopPay?.config?.shopId, shopPay?.config?.clientId]);
 
     if (!shopPay?.config) {
         return <p className="mt-6 text-sm text-slate-500">{t('shop_pay_unavailable')}</p>;

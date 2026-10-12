@@ -9,6 +9,7 @@ final class ShopPayQuoteRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'session_token' => ['required', 'string', 'max:255'],
             'shipping_address.first_name' => ['nullable', 'string', 'max:80'],
             'shipping_address.last_name' => ['required', 'string', 'max:80'],
             'shipping_address.line1' => ['required', 'string', 'max:180'],

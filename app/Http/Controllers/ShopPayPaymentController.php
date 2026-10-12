@@ -38,6 +38,7 @@ class ShopPayPaymentController extends Controller
 
         return $this->respond(fn () => $this->service->updateQuote(
             $order,
+            $validated['session_token'],
             $validated['shipping_address'],
             $validated['delivery_method'],
         ));

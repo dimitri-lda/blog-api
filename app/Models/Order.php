@@ -15,11 +15,16 @@ class Order extends Model
         'subtotal_cents', 'delivery_cents', 'total_cents', 'currency', 'market', 'locale',
         'base_currency', 'exchange_rate', 'vat_rate_basis_points', 'net_subtotal_cents',
         'tax_cents', 'delivery_net_cents', 'delivery_tax_cents',
+        'inventory_reserved_at', 'inventory_released_at',
     ];
 
     protected function casts(): array
     {
-        return ['status' => OrderStatus::class];
+        return [
+            'status' => OrderStatus::class,
+            'inventory_reserved_at' => 'datetime',
+            'inventory_released_at' => 'datetime',
+        ];
     }
 
     public function user(): BelongsTo

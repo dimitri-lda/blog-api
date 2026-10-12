@@ -2,14 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Application\Orders\Admin\ChangeOrderStatus;
+use App\Domain\Orders\ValueObjects\OrderStatus;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\ExchangeRate;
 use App\Models\Manufacturer;
+use App\Models\Order;
 use App\Models\Product;
+use App\Services\ExchangeRateService;
+use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -117,8 +123,13 @@ class ProductCatalogTest extends TestCase
         $this->get('/cart')->assertInertia(fn (Assert $page) => $page
             ->component('Store/Cart')->where('cart.items.0.variant_id', $mixed->variants->last()->id)
             ->where('cart.currency', 'EUR'));
-        $this->get('/checkout')->assertInertia(fn (Assert $page) => $page
-            ->component('Store/Checkout')->where('cart.items.0.variant_id', $mixed->variants->last()->id));
+        $checkout = $this->get('/checkout');
+        $checkout->assertInertia(fn (Assert $page) => $page
+            ->component('Store/Checkout')->where('cart.items.0.variant_id', $mixed->variants->last()->id)
+            ->has('cart.delivery_quotes.standard')
+            ->has('cart.delivery_quotes.express'));
+        $quotes = $checkout->viewData('page')['props']['cart']['delivery_quotes'];
+        $this->assertGreaterThan($quotes['standard']['total_cents'], $quotes['express']['total_cents']);
         $this->post('/checkout', [
             'email' => 'buyer@example.test', 'phone' => '123456789',
             'first_name' => 'Test', 'last_name' => 'Buyer', 'line1' => 'Test 1',
@@ -129,6 +140,79 @@ class ProductCatalogTest extends TestCase
         $this->assertDatabaseHas('order_items', [
             'product_variant_id' => $mixed->variants->last()->id, 'quantity' => 1,
         ]);
+        $this->assertSame(0, $mixed->variants->last()->fresh()->stock);
+    }
+
+    public function test_checkout_reserves_stock_and_rejects_when_inventory_runs_out(): void
+    {
+        $category = Category::create(['name' => 'Sport', 'slug' => 'sport']);
+        $product = $this->product($category, [], 3);
+        $variant = $product->variants->first();
+        $checkout = [
+            'email' => 'buyer@example.test', 'phone' => '123456789',
+            'first_name' => 'Test', 'last_name' => 'Buyer', 'line1' => 'Test 1',
+            'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE',
+            'delivery_method' => 'standard',
+        ];
+
+        $this->post('/cart/items/'.$variant->id, ['quantity' => 2])->assertRedirect();
+        $this->post('/checkout', $checkout)->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame(1, $variant->fresh()->stock);
+        $order = Order::sole();
+        $this->assertNotNull($order->inventory_reserved_at);
+        $this->assertNull($order->inventory_released_at);
+        $this->assertDatabaseCount('cart_items', 0);
+
+        $this->post('/cart/items/'.$variant->id, ['quantity' => 1])->assertRedirect();
+        $variant->update(['stock' => 0]);
+        $this->post('/checkout', $checkout)->assertRedirect()->assertSessionHasErrors('cart');
+        $this->assertSame(1, Order::count());
+        $this->assertSame(0, $variant->fresh()->stock);
+    }
+
+    public function test_cancelling_an_order_releases_the_reserved_stock_only_once(): void
+    {
+        $category = Category::create(['name' => 'Sport', 'slug' => 'sport']);
+        $variant = $this->product($category, [], 3)->variants->first();
+
+        $this->post('/cart/items/'.$variant->id, ['quantity' => 2])->assertRedirect();
+        $this->post('/checkout', [
+            'email' => 'buyer@example.test', 'phone' => '123456789',
+            'first_name' => 'Test', 'last_name' => 'Buyer', 'line1' => 'Test 1',
+            'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE',
+            'delivery_method' => 'standard',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $order = Order::sole();
+        $this->assertSame(1, $variant->fresh()->stock);
+
+        app(ChangeOrderStatus::class)->handle($order->id, OrderStatus::Cancelled);
+        $order->refresh();
+        $this->assertSame('cancelled', $order->status->value);
+        $this->assertSame(3, $variant->fresh()->stock);
+        $this->assertNotNull($order->inventory_released_at);
+
+        $this->expectException(DomainException::class);
+        try {
+            app(ChangeOrderStatus::class)->handle($order->id, OrderStatus::Cancelled);
+        } finally {
+            $this->assertSame(3, $variant->fresh()->stock);
+        }
+    }
+
+    public function test_order_integrity_migration_rolls_back_and_reapplies(): void
+    {
+        $migration = require database_path(
+            'migrations/2026_10_11_000002_harden_order_and_payment_integrity.php',
+        );
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('orders', 'inventory_reserved_at'));
+        $this->assertFalse(Schema::hasColumn('payment_attempts', 'amount_cents'));
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('orders', 'inventory_reserved_at'));
+        $this->assertTrue(Schema::hasColumn('orders', 'inventory_released_at'));
+        $this->assertTrue(Schema::hasColumn('payment_attempts', 'amount_cents'));
+        $this->assertTrue(Schema::hasColumn('payment_attempts', 'currency'));
     }
 
     public function test_inactive_product_returns_404_and_empty_catalog_is_safe(): void
@@ -213,6 +297,7 @@ class ProductCatalogTest extends TestCase
             ->where('products.data.0.display_price.gross_cents', 36000));
         ExchangeRate::query()->delete();
         Http::fake(['*' => Http::response([], 503)]);
+        $this->app->forgetInstance(ExchangeRateService::class);
         $this->withSession(['market' => ['country' => 'BY', 'locale' => 'ru']])
             ->get('/shop')->assertInertia(fn (Assert $page) => $page
             ->has('products.data.0.pricing_error')->missing('products.data.0.display_price'));

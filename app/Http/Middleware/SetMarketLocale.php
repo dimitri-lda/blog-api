@@ -13,6 +13,10 @@ final class SetMarketLocale
 
     public function handle(Request $request, Closure $next): Response
     {
+        if ($request->routeIs('webhooks.*')) {
+            return $next($request);
+        }
+
         $context = $this->market->forRequest($request);
         app()->setLocale($context['locale']);
         $request->attributes->set('market', $context);

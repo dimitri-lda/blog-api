@@ -3,6 +3,8 @@
 namespace App\Services\ShopPay;
 
 use DomainException;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
 final class ShopifyAdminClient
@@ -39,16 +41,20 @@ final class ShopifyAdminClient
 
     public function receiptBySourceIdentifier(string $sourceIdentifier): ?array
     {
-        $response = Http::timeout(10)
-            ->retry(2, 100)
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-                'X-Shopify-Access-Token' => $this->config->get('admin_access_token'),
-            ])
-            ->post($this->endpoint(), [
-                'query' => self::RECEIPTS_QUERY,
-                'variables' => ['query' => "source_identifier:'".addcslashes($sourceIdentifier, "\\'")."'"],
-            ]);
+        try {
+            $response = Http::timeout(10)
+                ->retry(2, 100, throw: false)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'X-Shopify-Access-Token' => $this->config->get('admin_access_token'),
+                ])
+                ->post($this->endpoint(), [
+                    'query' => self::RECEIPTS_QUERY,
+                    'variables' => ['query' => "source_identifier:'".addcslashes($sourceIdentifier, "\\'")."'"],
+                ]);
+        } catch (ConnectionException|RequestException) {
+            throw new DomainException('Shopify admin API request failed.');
+        }
 
         $body = $response->json();
         if (! $response->successful() || ! is_array($body) || ! empty($body['errors'])) {

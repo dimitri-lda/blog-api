@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PaymentAttempt extends Model
 {
     protected $fillable = [
-        'payment_session_id', 'payment_method_hash', 'idempotency_key', 'payload',
-        'receipt_token', 'status', 'last_error',
+        'payment_session_id', 'payment_method_hash', 'amount_cents', 'currency',
+        'idempotency_key', 'payload', 'receipt_token', 'status', 'last_error',
     ];
 
     protected function casts(): array
@@ -18,6 +18,7 @@ class PaymentAttempt extends Model
         return [
             'payload' => 'encrypted:array',
             'receipt_token' => 'encrypted',
+            'amount_cents' => 'integer',
             'status' => PaymentAttemptStatus::class,
         ];
     }

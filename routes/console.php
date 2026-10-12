@@ -11,6 +11,8 @@ Artisan::command('inspire', function () {
 
 Schedule::command('commerce:refresh-exchange-rates')->hourly();
 
+Schedule::command('storefront:cache-warm')->everyFiveMinutes();
+
 Schedule::command('shop-pay:reconcile')
     ->everyFiveMinutes()
     ->when(fn () => app(ShopPayConfiguration::class)->enabled());

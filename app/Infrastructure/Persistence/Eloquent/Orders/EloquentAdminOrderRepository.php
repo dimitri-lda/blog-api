@@ -5,6 +5,8 @@ namespace App\Infrastructure\Persistence\Eloquent\Orders;
 use App\Domain\Orders\Repository\AdminOrderRepository;
 use App\Domain\Orders\ValueObjects\OrderStatus;
 use App\Models\Order;
+use App\Models\ProductVariant;
+use Illuminate\Support\Facades\DB;
 
 final class EloquentAdminOrderRepository implements AdminOrderRepository
 {
@@ -13,9 +15,10 @@ final class EloquentAdminOrderRepository implements AdminOrderRepository
         $query = Order::query()->withCount('items')->latest();
 
         if ($search) {
+            $pattern = $this->likePattern($search);
             $query->where(fn ($orders) => $orders
-                ->where('number', 'like', "%{$search}%")
-                ->orWhere('email', 'like', "%{$search}%"));
+                ->where('number', 'like', $pattern)
+                ->orWhere('email', 'like', $pattern));
         }
 
         if ($status) {
@@ -72,7 +75,11 @@ final class EloquentAdminOrderRepository implements AdminOrderRepository
             'delivery_net_cents' => $order->delivery_net_cents,
             'delivery_tax_cents' => $order->delivery_tax_cents,
             'created_at' => $order->created_at?->toIso8601String(),
-            'customer' => $order->user ? ['id' => $order->user->id, 'name' => $order->user->name, 'email' => $order->user->email] : null,
+            'customer' => $order->user ? [
+                'id' => $order->user->id,
+                'name' => $order->user->name,
+                'email' => $order->user->email,
+            ] : null,
             'address' => $order->address ? [
                 'first_name' => $order->address->first_name,
                 'last_name' => $order->address->last_name,
@@ -108,6 +115,38 @@ final class EloquentAdminOrderRepository implements AdminOrderRepository
 
     public function updateStatus(int $id, OrderStatus $status): void
     {
-        Order::query()->whereKey($id)->update(['status' => $status->value]);
+        DB::transaction(function () use ($id, $status): void {
+            $order = Order::with('items')->whereKey($id)->lockForUpdate()->first();
+            if (! $order) {
+                return;
+            }
+            $order->status->transitionTo($status);
+
+            if ($status === OrderStatus::Cancelled
+                && $order->inventory_reserved_at !== null
+                && $order->inventory_released_at === null) {
+                $variants = ProductVariant::whereIn(
+                    'id',
+                    $order->items->pluck('product_variant_id')->filter()->all(),
+                )->lockForUpdate()->get()->keyBy('id');
+                foreach ($order->items as $item) {
+                    $variant = $item->product_variant_id
+                        ? $variants->get($item->product_variant_id)
+                        : null;
+                    if ($variant) {
+                        $variant->increment('stock', $item->quantity);
+                    }
+                }
+                $order->inventory_released_at = now();
+            }
+
+            $order->status = $status;
+            $order->save();
+        });
+    }
+
+    private function likePattern(string $value): string
+    {
+        return '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value).'%';
     }
 }

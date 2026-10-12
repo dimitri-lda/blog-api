@@ -9,7 +9,6 @@ use App\Domain\Payments\PaymentSessionStatus;
 use App\Models\Order;
 use App\Models\PaymentAttempt;
 use App\Models\PaymentSession;
-use App\Models\ProductVariant;
 use App\Services\ShopPay\ShopifyAdminClient;
 use App\Services\ShopPay\ShopPayConfiguration;
 use App\Services\ShopPay\ShopPayPaymentRequestFactory;
@@ -20,6 +19,8 @@ use Illuminate\Support\Str;
 
 final class ShopPayService
 {
+    private const SUBMISSION_LEASE_SECONDS = 30;
+
     public function __construct(
         private readonly ShopPayConfiguration $config,
         private readonly ShopPayStorefrontClient $storefront,
@@ -64,65 +65,127 @@ final class ShopPayService
         return [...$result, 'paymentRequest' => $this->requests->frontend($order)];
     }
 
-    public function updateQuote(Order $order, array $shippingAddress, string $deliveryMethod): array
-    {
-        $this->guardPayable($order);
-        $order->loadMissing('address');
-        $country = strtoupper((string) ($shippingAddress['country'] ?? ''));
-        if ($country === '' || $country !== strtoupper((string) $order->address?->country)) {
-            throw new DomainException('This order can only be shipped to its original country.');
-        }
-        $method = DeliveryMethod::tryFrom($deliveryMethod)
-            ?? throw new DomainException('Unsupported delivery method.');
+    public function updateQuote(
+        Order $order,
+        string $sessionToken,
+        array $shippingAddress,
+        string $deliveryMethod,
+    ): array {
+        return DB::transaction(function () use ($order, $sessionToken, $shippingAddress, $deliveryMethod): array {
+            $session = PaymentSession::where('order_id', $order->id)
+                ->where('session_token_hash', hash('sha256', $sessionToken))
+                ->lockForUpdate()
+                ->first();
+            if (! $session || $session->status !== PaymentSessionStatus::Ready) {
+                throw new DomainException('Shop Pay session is no longer editable.');
+            }
 
-        $order->address?->update([
-            'first_name' => $shippingAddress['first_name'] ?? $order->address->first_name,
-            'last_name' => $shippingAddress['last_name'] ?? $order->address->last_name,
-            'line1' => $shippingAddress['line1'] ?? $order->address->line1,
-            'line2' => $shippingAddress['line2'] ?? $order->address->line2,
-            'city' => $shippingAddress['city'] ?? $order->address->city,
-            'postal_code' => $shippingAddress['postal_code'] ?? $order->address->postal_code,
-        ]);
+            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $this->guardPayable($order);
+            $order->loadMissing('address');
+            $country = strtoupper((string) ($shippingAddress['country'] ?? ''));
+            if ($country === '' || $country !== strtoupper((string) $order->address?->country)) {
+                throw new DomainException('This order can only be shipped to its original country.');
+            }
+            $method = DeliveryMethod::tryFrom($deliveryMethod)
+                ?? throw new DomainException('Unsupported delivery method.');
 
-        $delivery = $this->requests->deliveryQuote($order, $method);
-        $order->forceFill([
-            'delivery_method' => $method->value,
-            'delivery_net_cents' => $delivery['net'],
-            'delivery_tax_cents' => $delivery['tax'],
-            'delivery_cents' => $delivery['gross'],
-            'total_cents' => $order->subtotal_cents + $delivery['gross'],
-        ])->save();
+            $order->address?->update([
+                'first_name' => $shippingAddress['first_name'] ?? $order->address->first_name,
+                'last_name' => $shippingAddress['last_name'] ?? $order->address->last_name,
+                'line1' => $shippingAddress['line1'] ?? $order->address->line1,
+                'line2' => $shippingAddress['line2'] ?? $order->address->line2,
+                'city' => $shippingAddress['city'] ?? $order->address->city,
+                'postal_code' => $shippingAddress['postal_code'] ?? $order->address->postal_code,
+            ]);
 
-        return ['paymentRequest' => $this->requests->frontend($order->refresh())];
+            $delivery = $this->requests->deliveryQuote($order, $method);
+            $order->forceFill([
+                'delivery_method' => $method->value,
+                'delivery_net_cents' => $delivery['net'],
+                'delivery_tax_cents' => $delivery['tax'],
+                'delivery_cents' => $delivery['gross'],
+                'total_cents' => $order->subtotal_cents + $delivery['gross'],
+            ])->save();
+
+            return ['paymentRequest' => $this->requests->frontend($order->refresh())];
+        });
     }
 
     public function submit(Order $order, string $sessionToken, string $paymentMethod, string $buyerIp): array
     {
-        $this->guardPayable($order);
         if ($paymentMethod === '' || mb_strlen($paymentMethod) > 10000) {
             throw new DomainException('Invalid payment method.');
         }
-        $session = PaymentSession::where('order_id', $order->id)
-            ->where('session_token_hash', hash('sha256', $sessionToken))
-            ->first();
-        if (! $session || ! in_array(
-            $session->status,
-            [PaymentSessionStatus::Ready, PaymentSessionStatus::Processing],
-            true,
-        )) {
-            throw new DomainException('Shop Pay session mismatch.');
-        }
-        $this->guardStock($order);
-
         $methodHash = hash_hmac('sha256', $paymentMethod, (string) config('app.key'));
-        $attempt = DB::transaction(fn () => PaymentAttempt::firstOrCreate(
-            ['payment_session_id' => $session->id, 'payment_method_hash' => $methodHash],
-            [
-                'idempotency_key' => (string) Str::uuid(),
-                'payload' => $this->requests->storefront($order, $paymentMethod),
-                'status' => PaymentAttemptStatus::Pending,
-            ],
-        ));
+
+        [$session, $attempt, $cachedStatus] = DB::transaction(
+            function () use ($order, $sessionToken, $methodHash, $paymentMethod): array {
+                $session = PaymentSession::where('order_id', $order->id)
+                    ->where('session_token_hash', hash('sha256', $sessionToken))
+                    ->lockForUpdate()
+                    ->first();
+                if (! $session) {
+                    throw new DomainException('Shop Pay session mismatch.');
+                }
+                $attempt = PaymentAttempt::where('payment_session_id', $session->id)
+                    ->where('payment_method_hash', $methodHash)
+                    ->lockForUpdate()
+                    ->first();
+                if ($session->status === PaymentSessionStatus::Processing && ! $attempt) {
+                    throw new DomainException('Shop Pay session is already processing a payment.');
+                }
+                if (! in_array(
+                    $session->status,
+                    [PaymentSessionStatus::Ready, PaymentSessionStatus::Processing],
+                    true,
+                )) {
+                    throw new DomainException('Shop Pay session mismatch.');
+                }
+                if ($attempt?->status === PaymentAttemptStatus::Pending
+                    && $attempt->updated_at?->gt(now()->subSeconds(self::SUBMISSION_LEASE_SECONDS))) {
+                    throw new DomainException('This payment submission is already in progress.');
+                }
+                if ($attempt?->status === PaymentAttemptStatus::Completed) {
+                    return [$session, $attempt, 'completed'];
+                }
+                if ($attempt?->status === PaymentAttemptStatus::Processing
+                    && filled($attempt->receipt_token)) {
+                    return [$session, $attempt, 'processing'];
+                }
+
+                $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+                $this->guardPayable($order);
+
+                if (! $attempt) {
+                    $attempt = PaymentAttempt::create([
+                        'payment_session_id' => $session->id,
+                        'payment_method_hash' => $methodHash,
+                        'idempotency_key' => (string) Str::uuid(),
+                        'amount_cents' => $order->total_cents,
+                        'currency' => $order->currency,
+                        'payload' => $this->requests->storefront($order, $paymentMethod),
+                        'status' => PaymentAttemptStatus::Pending,
+                    ]);
+                } else {
+                    // Failed or Processing without a receipt token: crash recovery.
+                    $attempt->forceFill([
+                        'status' => PaymentAttemptStatus::Pending,
+                        'last_error' => null,
+                    ])->save();
+                }
+                $session->forceFill([
+                    'status' => PaymentSessionStatus::Processing,
+                    'last_error' => null,
+                ])->save();
+
+                return [$session, $attempt, null];
+            },
+        );
+
+        if ($cachedStatus !== null) {
+            return ['status' => $cachedStatus];
+        }
 
         try {
             $result = $this->storefront->submit(
@@ -137,6 +200,10 @@ final class ShopPayService
                 'status' => PaymentAttemptStatus::Failed,
                 'last_error' => $exception->getMessage(),
             ])->save();
+            $session->refresh();
+            if ($session->status === PaymentSessionStatus::Processing) {
+                $session->forceFill(['status' => PaymentSessionStatus::Ready])->save();
+            }
             throw $exception;
         }
 
@@ -152,8 +219,7 @@ final class ShopPayService
 
     public function reconcile(Order $order): bool
     {
-        $session = $order->paymentSession;
-        if (! $this->config->enabled() || ! $session) {
+        if (! $this->config->enabled()) {
             return false;
         }
         if ($order->status === OrderStatus::Paid) {
@@ -162,21 +228,45 @@ final class ShopPayService
         if ($order->status !== OrderStatus::PendingPayment) {
             return false;
         }
+        $session = $order->paymentSession;
+        if (! $session) {
+            return false;
+        }
 
         $receipt = $this->admin->receiptBySourceIdentifier($session->source_identifier);
         if (! $receipt || $receipt['state'] !== 'COMPLETED') {
             return false;
         }
-        if ($receipt['sourceIdentifier'] !== $session->source_identifier
-            || $receipt['sourceIdentifier'] !== $this->sourceIdentifier($order)
-            || $receipt['total']['currencyCode'] !== $order->currency
-            || $this->amountToCents($receipt['total']['amount']) !== $order->total_cents) {
-            $session->forceFill(['last_error' => 'Receipt does not match the local order.'])->save();
 
-            return false;
-        }
+        return DB::transaction(function () use ($order, $receipt): bool {
+            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $session = PaymentSession::where('order_id', $order->id)->lockForUpdate()->first();
+            if (! $session) {
+                return false;
+            }
+            if ($order->status === OrderStatus::Paid) {
+                return true;
+            }
+            if ($order->status !== OrderStatus::PendingPayment) {
+                return false;
+            }
 
-        DB::transaction(function () use ($order, $session, $receipt): void {
+            $attempt = $session->attempts->first(
+                fn (PaymentAttempt $attempt) => is_string($attempt->receipt_token)
+                    && hash_equals($attempt->receipt_token, (string) $receipt['token']),
+            );
+            if (! $attempt
+                || $receipt['sourceIdentifier'] !== $session->source_identifier
+                || $receipt['sourceIdentifier'] !== $this->sourceIdentifier($order)
+                || $attempt->amount_cents === null
+                || $attempt->currency === null
+                || $receipt['total']['currencyCode'] !== $attempt->currency
+                || $this->amountToCents($receipt['total']['amount']) !== $attempt->amount_cents) {
+                $session->forceFill(['last_error' => 'Receipt does not match the local order.'])->save();
+
+                return false;
+            }
+
             $order->status = $order->status->transitionTo(OrderStatus::Paid);
             $order->save();
             $session->forceFill([
@@ -186,18 +276,13 @@ final class ShopPayService
                 'paid_at' => now(),
                 'last_error' => null,
             ])->save();
-            foreach ($session->attempts as $attempt) {
-                if (is_string($attempt->receipt_token) && hash_equals($attempt->receipt_token, $receipt['token'])) {
-                    $attempt->forceFill([
-                        'status' => PaymentAttemptStatus::Completed,
-                        'last_error' => null,
-                    ])->save();
-                    break;
-                }
-            }
-        });
+            $attempt->forceFill([
+                'status' => PaymentAttemptStatus::Completed,
+                'last_error' => null,
+            ])->save();
 
-        return true;
+            return true;
+        });
     }
 
     private function guardPayable(Order $order): void
@@ -207,24 +292,6 @@ final class ShopPayService
         }
         if ($order->status !== OrderStatus::PendingPayment) {
             throw new DomainException('This order is not awaiting payment.');
-        }
-    }
-
-    private function guardStock(Order $order): void
-    {
-        $order->loadMissing('items');
-        $variants = ProductVariant::with('product')
-            ->whereIn('id', $order->items->pluck('product_variant_id')->filter()->all())
-            ->get()
-            ->keyBy('id');
-        foreach ($order->items as $item) {
-            $variant = $item->product_variant_id ? $variants->get($item->product_variant_id) : null;
-            if (! $variant || ! $variant->product?->active) {
-                throw new DomainException("{$item->name} is no longer available.");
-            }
-            if ($variant->stock < $item->quantity) {
-                throw new DomainException("Not enough stock for {$item->name}.");
-            }
         }
     }
 

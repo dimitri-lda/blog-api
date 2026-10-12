@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Payments\PaymentAttemptStatus;
 use App\Models\Category;
 use App\Models\Order;
 use App\Models\PaymentAttempt;
@@ -10,6 +11,8 @@ use App\Models\Product;
 use App\Models\ShopifyWebhookDelivery;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -204,15 +207,39 @@ class ShopPayCheckoutTest extends TestCase
         $this->assertDatabaseCount('payment_sessions', 0);
     }
 
+    public function test_storefront_transport_failures_return_controlled_422(): void
+    {
+        [$order] = $this->makeOrder();
+        $url = "/orders/{$order->number}/payments/shop-pay/session";
+
+        foreach ([500, 429] as $status) {
+            Http::fake(['*' => Http::response(['errors' => [['message' => 'Shopify exploded']]], $status)]);
+            $this->guest($order)->postJson($url)
+                ->assertStatus(422)
+                ->assertJsonPath('message', 'Shop Pay storefront API request failed.');
+        }
+
+        Http::fake(fn () => throw new ConnectionException('Connection refused'));
+        $this->guest($order)->postJson($url)
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Shop Pay storefront API request failed.');
+
+        $this->assertStringNotContainsString('Shopify exploded', $this->guest($order)->postJson($url)->getContent());
+        $this->assertDatabaseCount('payment_sessions', 0);
+    }
+
     public function test_quote_allows_same_country_and_rejects_country_change(): void
     {
         [$order] = $this->makeOrder();
+        $this->fakeStorefront($order);
+        $this->createSessionFor($order);
         $address = [
             'first_name' => 'Test', 'last_name' => 'Buyer', 'line1' => 'New 5',
             'city' => 'Munich', 'postal_code' => '80331', 'country' => 'DE',
         ];
 
         $response = $this->guest($order)->patchJson("/orders/{$order->number}/payments/shop-pay/quote", [
+            'session_token' => 'session-token-1',
             'shipping_address' => $address,
             'delivery_method' => 'standard',
         ]);
@@ -224,10 +251,12 @@ class ShopPayCheckoutTest extends TestCase
         $this->assertSame('Munich', $order->address->city);
 
         $this->guest($order)->patchJson("/orders/{$order->number}/payments/shop-pay/quote", [
+            'session_token' => 'session-token-1',
             'shipping_address' => [...$address, 'country' => 'FR'],
             'delivery_method' => 'standard',
         ])->assertStatus(422);
         $this->guest($order)->patchJson("/orders/{$order->number}/payments/shop-pay/quote", [
+            'session_token' => 'session-token-1',
             'shipping_address' => $address,
             'delivery_method' => 'pickup',
         ])->assertStatus(422)->assertJsonValidationErrors('delivery_method');
@@ -235,12 +264,35 @@ class ShopPayCheckoutTest extends TestCase
         $this->assertSame('EUR', $order->fresh()->currency);
 
         $this->guest($order)->patchJson("/orders/{$order->number}/payments/shop-pay/quote", [
+            'session_token' => 'session-token-1',
             'shipping_address' => [...$address, 'first_name' => null, 'postal_code' => null],
             'delivery_method' => 'standard',
         ])->assertOk();
         $order->address->refresh();
         $this->assertSame('Test', $order->address->first_name);
         $this->assertSame('80331', $order->address->postal_code);
+    }
+
+    public function test_quote_requires_a_valid_ready_session(): void
+    {
+        [$order] = $this->makeOrder();
+        $this->fakeStorefront($order);
+        $this->createSessionFor($order);
+        $payload = [
+            'shipping_address' => [
+                'first_name' => 'Test', 'last_name' => 'Buyer', 'line1' => 'New 5',
+                'city' => 'Munich', 'postal_code' => '80331', 'country' => 'DE',
+            ],
+            'delivery_method' => 'standard',
+        ];
+
+        $this->guest($order)->patchJson("/orders/{$order->number}/payments/shop-pay/quote", $payload)
+            ->assertStatus(422)->assertJsonValidationErrors('session_token');
+        $this->guest($order)->patchJson(
+            "/orders/{$order->number}/payments/shop-pay/quote",
+            [...$payload, 'session_token' => 'forged-token'],
+        )->assertStatus(422);
+        $this->assertSame(1536, $order->fresh()->delivery_cents);
     }
 
     public function test_create_session_reuses_processing_session(): void
@@ -293,47 +345,122 @@ class ShopPayCheckoutTest extends TestCase
         ])->assertOk();
         $this->guest($order)->postJson($url, [
             'session_token' => 'session-token-1', 'payment_method' => 'pm-card-2',
-        ])->assertOk();
+        ])->assertStatus(422);
 
         $attempts = PaymentAttempt::orderBy('id')->get();
-        $this->assertCount(2, $attempts);
+        $this->assertCount(1, $attempts);
+        $this->assertSame(13436, $attempts->first()->amount_cents);
+        $this->assertSame('EUR', $attempts->first()->currency);
         $submits = collect(Http::recorded())
             ->filter(fn ($pair) => str_contains($pair[0]->body(), 'shopPayPaymentRequestSessionSubmit'))
             ->values();
-        $this->assertCount(3, $submits);
+        $this->assertCount(1, $submits);
         $this->assertSame($attempts->first()->idempotency_key, $submits[0][0]->data()['variables']['idempotencyKey']);
-        $this->assertSame(
-            $submits[0][0]->data()['variables']['idempotencyKey'],
-            $submits[1][0]->data()['variables']['idempotencyKey'],
-        );
-        $this->assertSame(
-            $submits[0][0]->data()['variables']['paymentRequest'],
-            $submits[1][0]->data()['variables']['paymentRequest'],
-        );
-        $this->assertSame($attempts->last()->idempotency_key, $submits[2][0]->data()['variables']['idempotencyKey']);
         $this->assertSame('processing', $attempts->first()->status->value);
         $this->assertSame('processing', PaymentSession::sole()->status->value);
         $this->assertSame('pending_payment', $order->fresh()->status->value);
     }
 
-    public function test_submit_validates_stock_and_product_state(): void
+    public function test_failed_submit_marks_attempt_failed_and_releases_session_for_retry(): void
     {
-        [$order, $variant] = $this->makeOrder();
-        $this->fakeStorefront($order);
+        [$order] = $this->makeOrder();
+        Http::fake([self::SHOP.'/api/2026-07/graphql.json' => Http::sequence()
+            ->push($this->sessionResponse($order))
+            ->push(['errors' => [['message' => 'Shopify exploded']]], 500)
+            ->push(['errors' => [['message' => 'Shopify exploded']]], 500)
+            ->push($this->submitResponse())]);
         $this->createSessionFor($order);
         $payload = ['session_token' => 'session-token-1', 'payment_method' => 'pm-card-1'];
+        $url = "/orders/{$order->number}/payments/shop-pay/submit";
 
-        $submit = fn () => $this->guest($order)
-            ->postJson("/orders/{$order->number}/payments/shop-pay/submit", $payload);
+        $this->guest($order)->postJson($url, $payload)->assertStatus(422)
+            ->assertJsonPath('message', 'Shop Pay storefront API request failed.');
+        $this->assertSame('ready', PaymentSession::sole()->status->value);
+        $attempt = PaymentAttempt::sole();
+        $this->assertSame('failed', $attempt->status->value);
+        $this->assertSame('Shop Pay storefront API request failed.', $attempt->last_error);
 
-        $variant->update(['stock' => 0]);
-        $submit()->assertStatus(422);
-        $variant->update(['stock' => 5]);
-        $variant->product->update(['active' => false]);
-        $submit()->assertStatus(422);
-        $variant->delete();
-        $submit()->assertStatus(422);
-        $this->assertDatabaseCount('payment_attempts', 0);
+        $this->guest($order)->postJson($url, $payload)->assertOk();
+        $this->assertSame('processing', PaymentSession::sole()->status->value);
+        $this->assertSame('processing', $attempt->fresh()->status->value);
+        $this->assertSame('receipt-token-1', $attempt->fresh()->receipt_token);
+        $submits = collect(Http::recorded())
+            ->filter(fn ($pair) => str_contains($pair[0]->body(), 'shopPayPaymentRequestSessionSubmit'))
+            ->values();
+        $this->assertCount(3, $submits);
+        foreach ($submits as $submit) {
+            $this->assertSame($attempt->idempotency_key, $submit[0]->data()['variables']['idempotencyKey']);
+        }
+    }
+
+    public function test_stale_pending_attempt_is_recovered_with_same_idempotency_key(): void
+    {
+        [$order] = $this->makeOrder();
+        $this->fakeStorefront($order);
+        $this->createSessionFor($order);
+        $url = "/orders/{$order->number}/payments/shop-pay/submit";
+        $payload = ['session_token' => 'session-token-1', 'payment_method' => 'pm-card-1'];
+        $submitMutation = fn ($pair) => str_contains(
+            $pair[0]->body(), 'shopPayPaymentRequestSessionSubmit',
+        );
+
+        $this->guest($order)->postJson($url, $payload)->assertOk();
+        $attempt = PaymentAttempt::sole();
+        $attempt->forceFill([
+            'status' => PaymentAttemptStatus::Pending,
+            'receipt_token' => null,
+        ])->save();
+
+        $this->guest($order)->postJson($url, $payload)->assertStatus(422)
+            ->assertJsonPath('message', 'This payment submission is already in progress.');
+        $this->assertCount(1, collect(Http::recorded())->filter($submitMutation));
+
+        DB::table('payment_attempts')
+            ->where('id', $attempt->id)
+            ->update(['updated_at' => now()->subSeconds(60)]);
+
+        $this->guest($order)->postJson($url, $payload)->assertOk();
+        $this->assertSame('processing', $attempt->fresh()->status->value);
+        $this->assertSame('receipt-token-1', $attempt->fresh()->receipt_token);
+        $submits = collect(Http::recorded())->filter($submitMutation)->values();
+        $this->assertCount(2, $submits);
+        foreach ($submits as $submit) {
+            $this->assertSame(
+                $attempt->idempotency_key,
+                $submit[0]->data()['variables']['idempotencyKey'],
+            );
+        }
+    }
+
+    public function test_quote_is_rejected_after_submit_and_order_economics_stay_frozen(): void
+    {
+        [$order] = $this->makeOrder();
+        Http::fake(['*/admin/api/*' => Http::response($this->receiptResponse($order))]);
+        $this->fakeStorefront($order);
+        $this->createSessionFor($order);
+        $this->guest($order)->postJson("/orders/{$order->number}/payments/shop-pay/submit", [
+            'session_token' => 'session-token-1', 'payment_method' => 'pm-1',
+        ])->assertOk();
+
+        $this->guest($order)->patchJson("/orders/{$order->number}/payments/shop-pay/quote", [
+            'session_token' => 'session-token-1',
+            'shipping_address' => [
+                'first_name' => 'Changed', 'last_name' => 'Buyer', 'line1' => 'Other 9',
+                'city' => 'Hamburg', 'postal_code' => '20095', 'country' => 'DE',
+            ],
+            'delivery_method' => 'standard',
+        ])->assertStatus(422);
+
+        $order->refresh();
+        $this->assertSame(13436, $order->total_cents);
+        $this->assertSame('express', $order->delivery_method);
+        $this->assertSame('Berlin', $order->address->city);
+        $this->assertSame('Test 1', $order->address->line1);
+
+        $this->guest($order)->postJson("/orders/{$order->number}/payments/shop-pay/reconcile")
+            ->assertOk()->assertJsonPath('paid', true);
+        $this->assertSame('paid', $order->fresh()->status->value);
+        $this->assertSame('completed', PaymentAttempt::sole()->status->value);
     }
 
     public function test_webhook_verifies_hmac_and_deduplicates_deliveries(): void
@@ -342,6 +469,9 @@ class ShopPayCheckoutTest extends TestCase
         Http::fake(['*/admin/api/*' => Http::response($this->receiptResponse($order))]);
         $this->fakeStorefront($order);
         $this->createSessionFor($order);
+        $this->guest($order)->postJson("/orders/{$order->number}/payments/shop-pay/submit", [
+            'session_token' => 'session-token-1', 'payment_method' => 'pm-1',
+        ])->assertOk();
         $payload = json_encode(['source_identifier' => 'shop-pay:'.$order->number]);
 
         $this->call('POST', '/webhooks/shopify/orders', [], [], [], [
@@ -375,6 +505,9 @@ class ShopPayCheckoutTest extends TestCase
             ->push($this->receiptResponse($order));
         $this->fakeStorefront($order);
         $this->createSessionFor($order);
+        $this->guest($order)->postJson("/orders/{$order->number}/payments/shop-pay/submit", [
+            'session_token' => 'session-token-1', 'payment_method' => 'pm-1',
+        ])->assertOk();
         $route = "/orders/{$order->number}/payments/shop-pay/reconcile";
 
         $this->guest($order)->postJson($route)->assertOk()->assertJsonPath('paid', false);
@@ -413,6 +546,7 @@ class ShopPayCheckoutTest extends TestCase
         $this->guest($order)->postJson($url, [
             'session_token' => 'session-token-1', 'payment_method' => 'pm-old',
         ])->assertOk();
+        PaymentSession::sole()->forceFill(['status' => 'ready'])->save();
         $this->guest($order)->postJson($url, [
             'session_token' => 'session-token-1', 'payment_method' => 'pm-new',
         ])->assertOk();
@@ -531,6 +665,9 @@ class ShopPayCheckoutTest extends TestCase
             ->push($this->receiptResponse($order))]);
         $this->fakeStorefront($order);
         $this->createSessionFor($order);
+        $this->guest($order)->postJson("/orders/{$order->number}/payments/shop-pay/submit", [
+            'session_token' => 'session-token-1', 'payment_method' => 'pm-1',
+        ])->assertOk();
 
         $payload = json_encode(['source_identifier' => 'shop-pay:'.$order->number]);
         $deliveryId = (string) Str::uuid();

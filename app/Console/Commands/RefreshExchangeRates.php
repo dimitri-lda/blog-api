@@ -15,7 +15,7 @@ final class RefreshExchangeRates extends Command
     {
         foreach (['PLN', 'BYN'] as $currency) {
             try {
-                $rate = $rates->rate($currency);
+                $rate = $rates->refresh($currency);
                 $this->line("{$currency}: {$rate['rate']} ({$rate['source']})");
             } catch (\Throwable $e) {
                 $this->error("{$currency}: {$e->getMessage()}");
