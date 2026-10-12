@@ -56,6 +56,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Trusted Proxies
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated list of proxies (addresses or CIDR ranges) whose
+    | forwarded headers should be trusted. Empty by default; populate
+    | TRUSTED_PROXIES when the app sits behind a load balancer or CDN.
+    |
+    */
+
+    'trusted_proxies' => array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', '')))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

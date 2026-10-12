@@ -27,11 +27,11 @@ export default function UpdateProfileInformation({
     return (
         <section className={className}>
             <header>
-                <h2 className="text-lg font-medium text-gray-900">
+                <h2 className="text-xl font-black text-slate-950">
                     Profile Information
                 </h2>
 
-                <p className="mt-1 text-sm text-gray-600">
+                <p className="mt-2 text-sm leading-6 text-slate-500">
                     Update your account's profile information and email address.
                 </p>
             </header>
@@ -42,7 +42,7 @@ export default function UpdateProfileInformation({
 
                     <TextInput
                         id="name"
-                        className="mt-1 block w-full"
+                        className="mt-2 block w-full rounded-xl border-slate-200 px-4 py-3 text-slate-900 shadow-none focus:border-blue-500 focus:ring-blue-200"
                         value={data.name}
                         onChange={(e) => setData('name', e.target.value)}
                         required
@@ -59,7 +59,7 @@ export default function UpdateProfileInformation({
                     <TextInput
                         id="email"
                         type="email"
-                        className="mt-1 block w-full"
+                        className="mt-2 block w-full rounded-xl border-slate-200 px-4 py-3 text-slate-900 shadow-none focus:border-blue-500 focus:ring-blue-200"
                         value={data.email}
                         onChange={(e) => setData('email', e.target.value)}
                         required
@@ -71,20 +71,20 @@ export default function UpdateProfileInformation({
 
                 {mustVerifyEmail && user.email_verified_at === null && (
                     <div>
-                        <p className="mt-2 text-sm text-gray-800">
+                        <p className="mt-2 text-sm text-slate-700">
                             Your email address is unverified.
                             <Link
                                 href={route('verification.send')}
                                 method="post"
                                 as="button"
-                                className="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                className="ml-1 rounded text-sm font-semibold text-blue-700 underline underline-offset-4 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                             >
                                 Click here to re-send the verification email.
                             </Link>
                         </p>
 
                         {status === 'verification-link-sent' && (
-                            <div className="mt-2 text-sm font-medium text-green-600">
+                            <div className="mt-2 text-sm font-medium text-blue-600">
                                 A new verification link has been sent to your
                                 email address.
                             </div>
@@ -93,7 +93,7 @@ export default function UpdateProfileInformation({
                 )}
 
                 <div className="flex items-center gap-4">
-                    <PrimaryButton disabled={processing}>Save</PrimaryButton>
+                    <PrimaryButton className="rounded-full bg-slate-950 px-5 py-3 text-sm normal-case tracking-normal hover:bg-blue-600 focus:bg-blue-600" disabled={processing}>Save changes</PrimaryButton>
 
                     <Transition
                         show={recentlySuccessful}
@@ -102,7 +102,7 @@ export default function UpdateProfileInformation({
                         leave="transition ease-in-out"
                         leaveTo="opacity-0"
                     >
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm font-medium text-blue-700">
                             Saved.
                         </p>
                     </Transition>

@@ -2,6 +2,8 @@
 
 namespace App\Domain\Orders\Entities;
 
+use DomainException;
+
 final readonly class OrderLine
 {
     public function __construct(
@@ -10,9 +12,11 @@ final readonly class OrderLine
         public string $variantName,
         public int $unitPriceCents,
         public int $quantity,
+        public int $netUnitPriceCents = 0,
+        public int $taxCents = 0,
     ) {
         if ($quantity < 1) {
-            throw new \DomainException('An order line must contain at least one item.');
+            throw new DomainException('An order line must contain at least one item.');
         }
     }
 

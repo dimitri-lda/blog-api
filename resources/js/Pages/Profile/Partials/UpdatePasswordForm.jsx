@@ -47,11 +47,11 @@ export default function UpdatePasswordForm({ className = '' }) {
     return (
         <section className={className}>
             <header>
-                <h2 className="text-lg font-medium text-gray-900">
+                <h2 className="text-xl font-black text-slate-950">
                     Update Password
                 </h2>
 
-                <p className="mt-1 text-sm text-gray-600">
+                <p className="mt-2 text-sm leading-6 text-slate-500">
                     Ensure your account is using a long, random password to stay
                     secure.
                 </p>
@@ -72,7 +72,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                             setData('current_password', e.target.value)
                         }
                         type="password"
-                        className="mt-1 block w-full"
+                        className="mt-2 block w-full rounded-xl border-slate-200 px-4 py-3 text-slate-900 shadow-none focus:border-blue-500 focus:ring-blue-200"
                         autoComplete="current-password"
                     />
 
@@ -91,7 +91,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                         value={data.password}
                         onChange={(e) => setData('password', e.target.value)}
                         type="password"
-                        className="mt-1 block w-full"
+                        className="mt-2 block w-full rounded-xl border-slate-200 px-4 py-3 text-slate-900 shadow-none focus:border-blue-500 focus:ring-blue-200"
                         autoComplete="new-password"
                     />
 
@@ -111,7 +111,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                             setData('password_confirmation', e.target.value)
                         }
                         type="password"
-                        className="mt-1 block w-full"
+                        className="mt-2 block w-full rounded-xl border-slate-200 px-4 py-3 text-slate-900 shadow-none focus:border-blue-500 focus:ring-blue-200"
                         autoComplete="new-password"
                     />
 
@@ -122,7 +122,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <PrimaryButton disabled={processing}>Save</PrimaryButton>
+                    <PrimaryButton className="rounded-full bg-slate-950 px-5 py-3 text-sm normal-case tracking-normal hover:bg-blue-600 focus:bg-blue-600" disabled={processing}>Update password</PrimaryButton>
 
                     <Transition
                         show={recentlySuccessful}
@@ -131,7 +131,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                         leave="transition ease-in-out"
                         leaveTo="opacity-0"
                     >
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm font-medium text-blue-700">
                             Saved.
                         </p>
                     </Transition>
