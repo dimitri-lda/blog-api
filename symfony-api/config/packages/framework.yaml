@@ -1,0 +1,19 @@
+framework:
+    secret: '%env(APP_SECRET)%'
+    csrf_protection:
+        enabled: true
+    trusted_proxies: '%env(TRUSTED_PROXIES)%'
+    trusted_hosts: ['%env(TRUSTED_HOSTS)%']
+    session:
+        name: '%env(SESSION_COOKIE_NAME)%'
+        handler_id: Symfony\Component\HttpFoundation\Session\Storage\Handler\RedisSessionHandler
+        cookie_lifetime: 7200
+        cookie_secure: '%env(bool:SESSION_COOKIE_SECURE)%'
+        cookie_httponly: true
+        cookie_samesite: 'lax'
+
+when@test:
+    framework:
+        test: true
+        session:
+            storage_factory_id: session.storage.factory.mock_file

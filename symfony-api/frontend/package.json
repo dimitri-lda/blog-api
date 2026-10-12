@@ -1,0 +1,26 @@
+{
+    "name": "daosport-storefront",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "@headlessui/react": "2.2.10",
+        "@tanstack/react-query": "5.101.4",
+        "react": "18.3.1",
+        "react-dom": "18.3.1",
+        "react-router-dom": "7.18.2"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "6.0.5",
+        "autoprefixer": "10.5.4",
+        "postcss": "8.5.25",
+        "tailwindcss": "3.4.19",
+        "@tailwindcss/forms": "0.5.11",
+        "vite": "8.2.0"
+    }
+}

@@ -1,0 +1,135 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+parameters:
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+
+    App\Infrastructure\Cache\StorefrontCache:
+        arguments:
+            $enabled: '%storefront.cache.enabled%'
+            $prefix: '%storefront.cache.prefix%'
+            $generationTtl: '%storefront.cache.generation_ttl%'
+            $lockSeconds: '%storefront.cache.lock_seconds%'
+            $lockWaitMs: '%storefront.cache.lock_wait_ms%'
+            $ttl: '%storefront.cache.ttl%'
+
+    App\Application\Catalog\StorefrontCatalog:
+        alias: App\Infrastructure\Cache\CachedStorefrontCatalog
+
+    App\Infrastructure\Cache\CachedStorefrontCatalog:
+        arguments:
+            $cardTtl: '%storefront.cache.card_ttl%'
+            $maxSearchLength: '%storefront.cache.max_search_length%'
+            $maxPage: '%storefront.cache.max_page%'
+
+    session.redis_client:
+        class: Redis
+        factory: ['Symfony\Component\Cache\Adapter\RedisAdapter', 'createConnection']
+        arguments: ['%env(REDIS_URL)%']
+
+    Symfony\Component\HttpFoundation\Session\Storage\Handler\RedisSessionHandler:
+        arguments: ['@session.redis_client', { prefix: 'sess_', ttl: 7200 }]
+
+    App\Application\Commerce\MarketContextFactory:
+        arguments:
+            $defaultCountry: '%commerce.default_country%'
+            $markets: '%commerce.markets%'
+            $euVat: '%commerce.eu_vat%'
+            $locales: '%commerce.locales%'
+
+    App\Application\Commerce\CountryCatalog:
+        arguments:
+            $countries: '%commerce.country_names%'
+
+    App\Application\Commerce\PricingService:
+        arguments:
+            $standardDeliveryNetCents: '%commerce.delivery.standard_net_cents%'
+            $expressDeliveryNetCents: '%commerce.delivery.express_net_cents%'
+            $freeShippingGrossEurCents: '%commerce.delivery.free_shipping_gross_eur_cents%'
+
+    App\Application\Orders\PlaceOrderService:
+        arguments:
+            $locales: '%commerce.locales%'
+
+    App\Infrastructure\Persistence\Doctrine\Orders\DbalAdminOrderService:
+        arguments:
+            $locales: '%commerce.locales%'
+
+    App\Presentation\Console\WarmStorefrontCacheCommand:
+        arguments:
+            $locales: '%commerce.locales%'
+            $defaultPages: '%storefront.cache.warm_pages%'
+
+    App\Presentation\Console\SubscribeShopPayWebhookCommand:
+        arguments:
+            $callbackUrl: '%env(SHOP_PAY_WEBHOOK_URL)%'
+
+    App\Application\Commerce\ExchangeRateProvider:
+        alias: App\Infrastructure\Commerce\ExchangeRateService
+
+    App\Application\Commerce\ExchangeRateFetcher:
+        alias: App\Infrastructure\Commerce\HttpExchangeRateFetcher
+
+    App\Application\Commerce\ExchangeRateStore:
+        alias: App\Infrastructure\Persistence\Doctrine\Commerce\DbalExchangeRateStore
+
+    App\Application\Payments\FieldCipher:
+        alias: App\Infrastructure\Crypto\SodiumFieldCipher
+
+    App\Application\Payments\ShopPayService:
+        lazy: true
+
+    App\Infrastructure\Crypto\SodiumFieldCipher:
+        arguments:
+            $encodedKey: '%env(PAYMENT_ENCRYPTION_KEY)%'
+
+    App\Infrastructure\Crypto\LegacyLaravelDecryptor:
+        arguments:
+            $encodedKey: '%env(LARAVEL_LEGACY_APP_KEY)%'
+
+    App\Infrastructure\Commerce\ExchangeRateService:
+        arguments:
+            $ttl: 300
+
+    App\Infrastructure\Commerce\HttpExchangeRateFetcher:
+        arguments:
+            $myfinUrl: '%env(MYFIN_EUR_BYN_URL)%'
+            $walutomatUrl: '%env(default::WALUTOMAT_EUR_PLN_URL)%'
+            $walutomatToken: '%env(default::WALUTOMAT_API_TOKEN)%'
+
+    App\Infrastructure\Payments\ShopPayConfiguration:
+        arguments:
+            $configured: '%env(bool:SHOP_PAY_ENABLED)%'
+            $shopDomain: '%env(default::SHOP_PAY_SHOP_DOMAIN)%'
+            $apiVersion: '%env(SHOP_PAY_API_VERSION)%'
+            $shopId: '%env(default::SHOP_PAY_SHOP_ID)%'
+            $clientId: '%env(default::SHOP_PAY_CLIENT_ID)%'
+            $storefrontPrivateToken: '%env(default::SHOP_PAY_STOREFRONT_PRIVATE_TOKEN)%'
+            $adminAccessToken: '%env(default::SHOP_PAY_ADMIN_ACCESS_TOKEN)%'
+            $appClientSecret: '%env(default::SHOP_PAY_APP_CLIENT_SECRET)%'
+
+    App\Infrastructure\Payments\ShopPayPaymentRequestFactory:
+        arguments:
+            $standardDeliveryNetCents: '%commerce.delivery.standard_net_cents%'
+            $expressDeliveryNetCents: '%commerce.delivery.express_net_cents%'
+            $freeShippingGrossEurCents: '%commerce.delivery.free_shipping_gross_eur_cents%'
+
+    App\Infrastructure\Http\GeoIpResolver:
+        arguments:
+            $url: '%env(GEOIP_URL)%'
+            $missTtl: 600
+
+    App\Infrastructure\Http\MarketContextResolver:
+        arguments:
+            $defaultCountry: '%commerce.default_country%'
+
+    App\Infrastructure\Security\PasswordResetService:
+        arguments:
+            $frontendUrl: '%env(FRONTEND_URL)%'
+            $sender: '%env(MAILER_FROM)%'

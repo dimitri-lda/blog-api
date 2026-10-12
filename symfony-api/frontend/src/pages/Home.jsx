@@ -1,0 +1,91 @@
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import StoreLayout from '@/layouts/StoreLayout';
+import ProductCard from '@/components/ProductCard';
+import { api } from '@/api/client';
+
+export default function Home() {
+    const { data } = useQuery({ queryKey: ['home'], queryFn: () => api.get('/store/home') });
+    const categories = data?.data?.categories ?? [];
+    const featured = data?.data?.featured ?? [];
+
+    return <StoreLayout title="Move better"><main>
+        <section className="mx-auto max-w-7xl px-5 pt-6 lg:px-8">
+            <div className="relative overflow-hidden rounded-[2rem] bg-slate-900 px-7 py-16 text-white
+                sm:px-14 lg:min-h-[510px] lg:px-20 lg:py-28">
+                <div className="relative z-10 max-w-xl">
+                    <p className="mb-5 text-xs font-bold uppercase tracking-[.3em] text-blue-400">
+                        Move with purpose
+                    </p>
+                    <h1 className="text-5xl font-black leading-[.95] tracking-tight sm:text-7xl">
+                        Find your<br /><span className="text-blue-400">next gear.</span>
+                    </h1>
+                    <p className="mt-7 max-w-md text-base leading-7 text-slate-300">
+                        Performance equipment for running, training, racket sports and all
+                        the adventures in between.
+                    </p>
+                    <Link to="/shop" className="mt-9 inline-flex rounded-full bg-blue-400 px-7 py-3.5
+                        font-bold text-slate-950 transition hover:bg-blue-300">
+                        Explore the collection <span className="ml-3">↗</span>
+                    </Link>
+                </div>
+                <div className="absolute -right-20 -top-20 h-[480px] w-[480px] rounded-full bg-blue-400/20
+                    blur-3xl" />
+                <img
+                    src="https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1000&q=85"
+                    alt=""
+                    className="absolute right-0 top-0 hidden h-full w-1/2 object-cover opacity-70
+                        mix-blend-screen lg:block"
+                />
+            </div>
+        </section>
+        <section className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+            <div className="flex items-end justify-between">
+                <div>
+                    <p className="text-xs font-bold uppercase tracking-[.25em] text-blue-600">
+                        Browse by movement
+                    </p>
+                    <h2 className="mt-3 text-3xl font-black tracking-tight">What are you into?</h2>
+                </div>
+                <Link to="/shop" className="hidden text-sm font-bold underline underline-offset-4 sm:block">
+                    View all
+                </Link>
+            </div>
+            <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+                {categories.map(c => (
+                    <Link
+                        key={c.id}
+                        to={`/shop?category=${c.slug}`}
+                        className="group relative overflow-hidden rounded-2xl bg-slate-200"
+                    >
+                        <img
+                            src={c.image_url}
+                            alt={c.localized_name ?? c.name}
+                            className="aspect-[4/5] w-full object-cover transition duration-500
+                                group-hover:scale-105"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 p-5
+                            pt-16 text-white">
+                            <p className="font-bold">{c.localized_name ?? c.name}</p>
+                            <p className="mt-1 text-xs text-white/70">{c.products_count} products</p>
+                        </div>
+                    </Link>
+                ))}
+            </div>
+        </section>
+        <section className="bg-white">
+            <div className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+                <div className="flex items-end justify-between">
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-[.25em] text-blue-600">The edit</p>
+                        <h2 className="mt-3 text-3xl font-black tracking-tight">Our top picks</h2>
+                    </div>
+                    <Link to="/shop" className="text-sm font-bold underline underline-offset-4">Shop all</Link>
+                </div>
+                <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-4 lg:gap-x-6">
+                    {featured.map(p => <ProductCard key={p.id} product={p} />)}
+                </div>
+            </div>
+        </section>
+    </main></StoreLayout>;
+}

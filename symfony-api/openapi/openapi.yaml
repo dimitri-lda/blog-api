@@ -1,0 +1,1306 @@
+openapi: 3.1.0
+info:
+  title: daoSport Storefront API
+  version: '1.0'
+  description: >
+    JSON API served by the Symfony application under /api/v1. Same-origin session
+    cookie (storefront_session) plus an X-CSRF-Token header protect browser mutations;
+    the Shopify webhook uses HMAC headers instead. All successful payloads use a
+    top-level `data` envelope; failures return application/problem+json.
+servers:
+  - url: http://localhost:8080
+    description: Local docker-compose stack
+tags:
+  - name: context
+  - name: storefront
+  - name: cart
+  - name: checkout
+  - name: auth
+  - name: profile
+  - name: payments
+  - name: admin
+  - name: webhooks
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      tags: [context]
+      security: []
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /api/v1/context:
+    get:
+      summary: Bootstrap context for the SPA
+      description: >
+        Returns auth user, resolved market, allowed countries, translations and the
+        CSRF token. Must be refetched after login/register/logout because session
+        migration invalidates the previous token.
+      tags: [context]
+      responses:
+        '200':
+          description: Context payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextResponse'
+  /api/v1/preferences:
+    put:
+      summary: Persist market preference in the session
+      tags: [context]
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreferencesRequest'
+      responses:
+        '200':
+          description: Updated market
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferencesResponse'
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/store/home:
+    get:
+      summary: Categories + featured products for the home page
+      tags: [storefront]
+      responses:
+        '200':
+          description: Home payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      categories:
+                        type: array
+                        items: { $ref: '#/components/schemas/Category' }
+                      featured:
+                        type: array
+                        items: { $ref: '#/components/schemas/Product' }
+  /api/v1/categories:
+    get:
+      summary: Category tree (flat list with parent_id)
+      tags: [storefront]
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Category' }
+  /api/v1/products:
+    get:
+      summary: Paginated product catalog
+      tags: [storefront]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 255 } }
+        - name: category
+          in: query
+          schema: { type: string, maxLength: 255 }
+          description: Category slug
+        - { name: sort, in: query, schema: { type: string, enum: [price_asc, price_desc] } }
+        - name: page
+          in: query
+          description: Positive page number (cache bounds only cover early pages)
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Product page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+  /api/v1/products/{slug}:
+    get:
+      summary: Product detail
+      tags: [storefront]
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Product detail payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      product: { $ref: '#/components/schemas/Product' }
+                      breadcrumbs:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name: { type: string }
+                            slug: { type: string, nullable: true }
+                      related:
+                        type: array
+                        items: { $ref: '#/components/schemas/Product' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/cart:
+    get:
+      summary: Current session cart (guest or user)
+      tags: [cart]
+      responses:
+        '200':
+          description: Cart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+  /api/v1/cart/items:
+    post:
+      summary: Add a variant to the cart
+      tags: [cart]
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variant_id, quantity]
+              properties:
+                variant_id: { type: integer }
+                quantity: { type: integer, minimum: 1, maximum: 20 }
+      responses:
+        '201':
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/cart/items/{id}:
+    patch:
+      summary: Change item quantity
+      tags: [cart]
+      security:
+        - csrfToken: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity: { type: integer, minimum: 0, maximum: 20 }
+      responses:
+        '200':
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Validation' }
+    delete:
+      summary: Remove item from cart
+      tags: [cart]
+      security:
+        - csrfToken: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/checkout:
+    get:
+      summary: Checkout page data
+      tags: [checkout]
+      responses:
+        '200':
+          description: Checkout payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      cart: { $ref: '#/components/schemas/Cart' }
+                      user:
+                        oneOf:
+                          - $ref: '#/components/schemas/User'
+                          - type: 'null'
+                      address:
+                        oneOf:
+                          - $ref: '#/components/schemas/SavedAddress'
+                          - type: 'null'
+  /api/v1/orders:
+    post:
+      summary: Place an order from the current cart
+      tags: [checkout]
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceOrderRequest'
+      responses:
+        '201':
+          description: Order created; session last_order grants guest read access
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      number: { type: string }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/orders/{number}:
+    get:
+      summary: Order detail (owner or the session that placed it)
+      tags: [checkout]
+      parameters:
+        - { name: number, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '404':
+          description: Unknown order or no read permission
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/me/orders:
+    get:
+      summary: Authenticated user's order history
+      tags: [checkout]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Orders newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/register:
+    post:
+      summary: Register and log in (session migrates; refetch context)
+      tags: [auth]
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, password_confirmation, accepted_terms]
+              properties:
+                name: { type: string, maxLength: 255 }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                password_confirmation: { type: string }
+                accepted_terms: { type: boolean, enum: [true] }
+      responses:
+        '201':
+          description: Registered; response has no CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/auth/login:
+    post:
+      summary: Log in (session migrates; refetch context)
+      tags: [auth]
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                remember_me: { type: boolean }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/auth/logout:
+    post:
+      summary: Log out and invalidate the session
+      tags: [auth]
+      security:
+        - csrfToken: []
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      logged_out: { type: boolean }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+  /api/v1/auth/forgot-password:
+    post:
+      summary: Request a password reset email (generic response)
+      tags: [auth]
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Always generic
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message: { type: string }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/auth/reset-password:
+    post:
+      summary: Reset password with emailed token (1 h TTL, single use)
+      tags: [auth]
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, email, password, password_confirmation]
+              properties:
+                token: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                password_confirmation: { type: string }
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      password_reset: { type: boolean }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/profile:
+    get:
+      summary: Current profile + saved address
+      tags: [profile]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      summary: Update name/email (email change clears verification)
+      tags: [profile]
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+    delete:
+      summary: Delete the account (requires password)
+      tags: [profile]
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '204': { description: Account deleted; session invalidated }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/profile/address:
+    put:
+      summary: Create or replace saved address
+      tags: [profile]
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedAddressInput'
+      responses:
+        '200':
+          description: Updated profile + address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/profile/password:
+    put:
+      summary: Change password
+      tags: [profile]
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, password, password_confirmation]
+              properties:
+                current_password: { type: string }
+                password: { type: string, minLength: 8 }
+                password_confirmation: { type: string }
+      responses:
+        '200':
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      password_updated: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+  /api/v1/orders/{number}/payments/shop-pay/session:
+    post:
+      summary: Create Shop Pay session (pending orders only)
+      tags: [payments]
+      security:
+        - csrfToken: []
+      parameters:
+        - { name: number, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Session data for the Shop Pay SDK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopPaySessionResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Validation' }
+        '503':
+          description: Shop Pay disabled
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/orders/{number}/payments/shop-pay/quote:
+    patch:
+      summary: Re-quote a Shop Pay session after address/method change
+      tags: [payments]
+      security:
+        - csrfToken: []
+      parameters:
+        - { name: number, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShopPayQuoteRequest'
+      responses:
+        '200':
+          description: Updated payment request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      paymentRequest:
+                        $ref: '#/components/schemas/ShopPayPaymentRequest'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+        '503':
+          description: Shop Pay disabled
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/orders/{number}/payments/shop-pay/submit:
+    post:
+      summary: Confirm Shop Pay payment attempt
+      tags: [payments]
+      security:
+        - csrfToken: []
+      parameters:
+        - { name: number, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_token, payment_method]
+              properties:
+                session_token: { type: string }
+                payment_method: { type: string }
+      responses:
+        '200':
+          description: Attempt status from Shopify
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+        '503':
+          description: Shop Pay disabled
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/orders/{number}/payments/shop-pay/reconcile:
+    post:
+      summary: Reconcile a pending session against Shopify state
+      tags: [payments]
+      security:
+        - csrfToken: []
+      parameters:
+        - { name: number, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Whether the order is now paid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      paid: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/CsrfForbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+        '503':
+          description: Shop Pay disabled
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/webhooks/shopify/orders:
+    post:
+      summary: Shopify orders/create webhook (HMAC verified)
+      description: >
+        Exempt from CSRF. X-Shopify-Hmac-Sha256 must equal the base64 HMAC-SHA256
+        of the raw request body keyed with the app client secret; deliveries are
+        deduplicated on X-Shopify-Webhook-Id. Bodies whose source identifier
+        begins with `shop-pay:` trigger payment reconciliation. Always returns
+        empty 200 unless HMAC fails.
+      tags: [webhooks]
+      security: []
+      parameters:
+        - name: X-Shopify-Hmac-Sha256
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-Shopify-Webhook-Id
+          in: header
+          required: false
+          schema: { type: string, format: uuid }
+        - name: X-Shopify-Topic
+          in: header
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200': { description: Acknowledged }
+        '401':
+          description: HMAC verification failed
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/admin/orders:
+    get:
+      summary: Admin order list
+      tags: [admin]
+      security:
+        - cookieAuth: []
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200':
+          description: Admin order page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderListResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/admin/orders/{id}:
+    get:
+      summary: Admin order detail
+      tags: [admin]
+      security:
+        - cookieAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Order + allowed next statuses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      order: { $ref: '#/components/schemas/Order' }
+                      next_statuses:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/OrderStatus'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/admin/orders/{id}/status:
+    patch:
+      summary: Transition an order to one of its next_statuses
+      tags: [admin]
+      security:
+        - cookieAuth: []
+          csrfToken: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  $ref: '#/components/schemas/OrderStatus'
+      responses:
+        '200':
+          description: New status + refreshed allowed transitions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        $ref: '#/components/schemas/OrderStatus'
+                      next_statuses:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/OrderStatus'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Validation' }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: storefront_session
+      description: Symfony session cookie (Redis-backed), set on login.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: >
+        Token minted by GET /api/v1/context (data.csrf_token). Required on every
+        non-GET /api/v1 request except /api/v1/webhooks/*.
+  schemas:
+    Health:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            status: { type: string, enum: [ok] }
+            service: { type: string }
+    Problem:
+      type: object
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+          description: Field-level validation messages; omitted when not applicable.
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
+        email_verified_at:
+          oneOf:
+            - { type: string, format: date-time }
+            - type: 'null'
+        role: { type: string, enum: [user, admin, super_admin] }
+        roles:
+          type: array
+          items: { type: string }
+    Market:
+      type: object
+      properties:
+        country: { type: string, minLength: 2, maxLength: 2 }
+        market: { type: string, description: 'Market code, e.g. belarus/poland/eu' }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        locale: { type: string, enum: [en, ru, pl] }
+        vat_rate: { type: number, description: 'VAT percent, e.g. 19.0' }
+    Country:
+      type: object
+      properties:
+        code: { type: string, minLength: 2, maxLength: 2 }
+        name: { type: string }
+    ContextResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            auth:
+              type: object
+              properties:
+                user:
+                  oneOf:
+                    - $ref: '#/components/schemas/User'
+                    - type: 'null'
+            market: { $ref: '#/components/schemas/Market' }
+            countries:
+              type: array
+              items: { $ref: '#/components/schemas/Country' }
+            translations:
+              type: object
+              additionalProperties: { type: string }
+            csrf_token: { type: string }
+    PreferencesRequest:
+      type: object
+      required: [country]
+      properties:
+        country: { type: string, minLength: 2, maxLength: 2 }
+        locale:
+          oneOf:
+            - { type: string, enum: [en, ru, pl] }
+            - type: 'null'
+    PreferencesResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            market: { $ref: '#/components/schemas/Market' }
+            message: { type: string }
+    Category:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        localized_name: { type: string }
+        slug: { type: string }
+        parent_id:
+          oneOf:
+            - { type: integer }
+            - type: 'null'
+        products_count: { type: integer }
+    Money:
+      type: object
+      description: display_price object returned by the pricing service
+      properties:
+        net_cents: { type: integer }
+        gross_cents: { type: integer }
+        tax_cents: { type: integer }
+        currency: { type: string }
+        vat_rate: { type: number }
+    ProductVariant:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        localized_name: { type: string }
+        sku: { type: string }
+        stock: { type: integer }
+        display_price: { $ref: '#/components/schemas/Money' }
+    ProductImage:
+      type: object
+      properties:
+        id: { type: integer }
+        url: { type: string }
+        alt: { type: string, nullable: true }
+        sort_order: { type: integer }
+    Product:
+      type: object
+      description: Representative shape; catalog payloads may include more fields.
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        localized_name: { type: string }
+        slug: { type: string }
+        description: { type: string, nullable: true }
+        localized_description: { type: string, nullable: true }
+        brand: { type: string, nullable: true }
+        brand_record:
+          type: object
+          nullable: true
+          properties:
+            name: { type: string }
+            slug: { type: string }
+        display_price: { $ref: '#/components/schemas/Money' }
+        pricing_error:
+          type: string
+          nullable: true
+          description: Present when an exchange rate is unavailable.
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ProductImage' }
+        variants:
+          type: array
+          items: { $ref: '#/components/schemas/ProductVariant' }
+        specifications:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              value: { type: string }
+    ProductListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Product' }
+        meta:
+          type: object
+          properties:
+            current_page: { type: integer }
+            last_page: { type: integer }
+            per_page: { type: integer }
+            total: { type: integer }
+        filters:
+          type: object
+          description: Echoed q/category/sort (page is not echoed)
+          properties:
+            q: { type: string, nullable: true }
+            category: { type: string, nullable: true }
+            sort: { type: string, nullable: true }
+    CartItem:
+      type: object
+      properties:
+        id: { type: integer }
+        variant_id: { type: integer }
+        variant_name: { type: string }
+        name: { type: string }
+        image_url: { type: string }
+        quantity: { type: integer }
+        unit_price_cents: { type: integer, description: Net EUR cents }
+        net_unit_price_cents:
+          type: integer
+          description: Priced net in market currency; present once priced
+        tax_cents:
+          type: integer
+          description: Line VAT in market currency; present once priced
+        line_total_cents: { type: integer }
+    PriceQuote:
+      type: object
+      description: Pricing totals for one delivery method (lines removed)
+      properties:
+        currency: { type: string }
+        market: { type: string }
+        locale: { type: string }
+        country: { type: string }
+        exchange_rate: { type: number }
+        rate_source: { type: string }
+        vat_rate_basis_points: { type: integer }
+        net_subtotal_cents: { type: integer }
+        tax_cents: { type: integer }
+        subtotal_cents: { type: integer }
+        delivery_net_cents: { type: integer }
+        delivery_tax_cents: { type: integer }
+        delivery_cents: { type: integer }
+        total_cents: { type: integer }
+    Cart:
+      type: object
+      description: >
+        items/count/subtotal_cents are always present; the remaining quote
+        fields appear when the cart is non-empty and pricing succeeds,
+        otherwise `pricing_error` carries the failure message.
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CartItem' }
+        count: { type: integer }
+        subtotal_cents: { type: integer }
+        currency: { type: string }
+        market: { type: string }
+        locale: { type: string }
+        country: { type: string }
+        exchange_rate: { type: number }
+        vat_rate_basis_points: { type: integer }
+        net_subtotal_cents: { type: integer }
+        tax_cents: { type: integer }
+        delivery_net_cents: { type: integer }
+        delivery_tax_cents: { type: integer }
+        delivery_cents: { type: integer }
+        total_cents: { type: integer }
+        delivery_quotes:
+          type: object
+          properties:
+            standard: { $ref: '#/components/schemas/PriceQuote' }
+            express: { $ref: '#/components/schemas/PriceQuote' }
+        pricing_error: { type: string, nullable: true }
+    CartResponse:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Cart' }
+    SavedAddress:
+      type: object
+      properties:
+        first_name: { type: string }
+        last_name: { type: string }
+        line1: { type: string }
+        line2: { type: string, nullable: true }
+        city: { type: string }
+        postal_code: { type: string }
+        country: { type: string, minLength: 2, maxLength: 2 }
+    SavedAddressInput:
+      type: object
+      required: [first_name, last_name, line1, city, postal_code, country]
+      properties:
+        first_name: { type: string }
+        last_name: { type: string }
+        line1: { type: string }
+        line2: { type: string, nullable: true }
+        city: { type: string }
+        postal_code: { type: string }
+        country: { type: string, minLength: 2, maxLength: 2 }
+    PlaceOrderRequest:
+      type: object
+      required:
+        - email
+        - phone
+        - first_name
+        - last_name
+        - line1
+        - city
+        - postal_code
+        - country
+        - delivery_method
+      properties:
+        email: { type: string, format: email }
+        phone: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        line1: { type: string }
+        line2: { type: string, nullable: true }
+        city: { type: string }
+        postal_code: { type: string }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        delivery_method: { type: string, enum: [standard, express] }
+    OrderStatus:
+      type: string
+      enum:
+        - pending_payment
+        - paid
+        - processing
+        - shipped
+        - delivered
+        - cancelled
+        - refunded
+    OrderItem:
+      type: object
+      properties:
+        id: { type: integer }
+        product_name: { type: string }
+        variant_name: { type: string }
+        quantity: { type: integer }
+        unit_price_cents: { type: integer }
+        line_total_cents: { type: integer }
+    Order:
+      type: object
+      properties:
+        id: { type: integer }
+        number: { type: string }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        currency: { type: string }
+        market: { type: string }
+        locale: { type: string }
+        exchange_rate: { type: number }
+        vat_rate_basis_points: { type: integer }
+        subtotal_cents: { type: integer }
+        tax_cents: { type: integer }
+        delivery_cents: { type: integer }
+        total_cents: { type: integer }
+        customer:
+          type: object
+          properties:
+            email: { type: string }
+            phone: { type: string }
+            first_name: { type: string }
+            last_name: { type: string }
+        address: { $ref: '#/components/schemas/SavedAddress' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrderItem' }
+        created_at: { type: string, format: date-time }
+        shop_pay:
+          type: object
+          nullable: true
+          description: Present only when Shop Pay is enabled and order is pending_payment.
+          properties:
+            config:
+              type: object
+              nullable: true
+              properties:
+                shopId: { type: integer }
+                clientId: { type: string }
+            state: { type: string, nullable: true }
+            payment_request:
+              $ref: '#/components/schemas/ShopPayPaymentRequest'
+    OrderResponse:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Order' }
+    UserResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            user: { $ref: '#/components/schemas/User' }
+    ProfileResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            user: { $ref: '#/components/schemas/User' }
+            address:
+              oneOf:
+                - $ref: '#/components/schemas/SavedAddress'
+                - type: 'null'
+    ShopPayPaymentRequest:
+      type: object
+      description: Shop Pay paymentRequest object passed to the SDK as-is.
+      additionalProperties: true
+    ShopPaySessionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            token: { type: string }
+            checkoutUrl: { type: string, format: uri }
+            sourceIdentifier: { type: string }
+            paymentRequest:
+              $ref: '#/components/schemas/ShopPayPaymentRequest'
+    ShopPayQuoteRequest:
+      type: object
+      required: [session_token, shipping_address, delivery_method]
+      properties:
+        session_token: { type: string }
+        shipping_address:
+          type: object
+          properties:
+            first_name: { type: string }
+            last_name: { type: string }
+            line1: { type: string }
+            line2: { type: string, nullable: true }
+            city: { type: string }
+            postal_code: { type: string }
+            country: { type: string }
+        delivery_method: { type: string }
+    AdminOrderListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Order' }
+        meta:
+          type: object
+          properties:
+            current_page: { type: integer }
+            last_page: { type: integer }
+            per_page: { type: integer }
+            total: { type: integer }
+        filters:
+          type: object
+          description: Echoed filters; empty string when unset
+          properties:
+            q: { type: string }
+            status: { type: string }
+        statuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderStatus'
+  responses:
+    Unauthorized:
+      description: Authentication required (anonymous) or bad credentials
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Authenticated but lacking the required role
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    CsrfForbidden:
+      description: Missing or invalid X-CSRF-Token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Resource does not exist (or ownership check failed)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Validation:
+      description: Validation failed or business rule rejected the request
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

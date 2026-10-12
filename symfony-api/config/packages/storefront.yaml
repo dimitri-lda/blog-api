@@ -1,0 +1,13 @@
+parameters:
+    storefront.cache.enabled: '%env(bool:STOREFRONT_CACHE_ENABLED)%'
+    storefront.cache.prefix: sf
+    storefront.cache.generation_ttl: 2592000
+    storefront.cache.lock_seconds: 10
+    storefront.cache.lock_wait_ms: 500
+    storefront.cache.card_ttl: 1800
+    storefront.cache.max_search_length: 32
+    storefront.cache.max_page: 20
+    storefront.cache.warm_pages: 2
+    storefront.cache.ttl:
+        tree: { fresh: 600, total: 1800 }
+        list: { fresh: 120, total: 600 }

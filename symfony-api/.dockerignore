@@ -1,0 +1,14 @@
+.git
+.gitignore
+.dockerignore
+compose.yaml
+docker/
+docs/
+vendor/
+var/
+tests/
+.phpunit.cache/
+frontend/
+.env
+.env.*
+!/.env.example

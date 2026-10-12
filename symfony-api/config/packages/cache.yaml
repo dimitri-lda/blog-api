@@ -1,0 +1,19 @@
+framework:
+    cache:
+        app: cache.adapter.redis
+        default_redis_provider: '%env(REDIS_URL)%'
+        pools:
+            cache.storefront:
+                adapter: cache.adapter.redis
+            cache.rate:
+                adapter: cache.adapter.redis
+
+when@test:
+    framework:
+        cache:
+            app: cache.adapter.array
+            pools:
+                cache.storefront:
+                    adapter: cache.adapter.array
+                cache.rate:
+                    adapter: cache.adapter.array
